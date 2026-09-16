@@ -14,5 +14,5 @@ dotnet ef migrations add <MigrationName> \
 The database connection is supplied through the `ConnectionStrings:TriggeredDatabase`
 configuration key. Local development may use `appsettings.Development.json`;
 deployed environments must provide the value through environment configuration
-or another approved secret store. No initial migration is committed yet
-because this story intentionally introduces no persisted domain entities.
+or another approved secret store. The initial `InitialFood` migration creates
+the persisted Food model.
