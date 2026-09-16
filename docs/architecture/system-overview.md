@@ -39,6 +39,11 @@ Implements persistence, EF Core, SQL Server access, authentication
 infrastructure, and other external integrations. It is not a place for
 arbitrary business logic.
 
+The API registers `TriggeredDbContext` from the Infrastructure project through
+the `ConnectionStrings:TriggeredDatabase` configuration key. EF Core migrations
+are also owned by Infrastructure so database concerns remain outside Domain
+and Application.
+
 ### Presentation
 
 Exposes application capabilities through the ASP.NET Core HTTP/API boundary.
@@ -64,4 +69,3 @@ The approved direction is C#, ASP.NET Core, Entity Framework Core, Microsoft
 SQL Server, REST/JSON, TypeScript, React, Next.js, React Native, Expo, Docker,
 and Ubuntu Server. Authentication is expected to use OAuth/OIDC; the provider
 and implementation remain undecided.
-

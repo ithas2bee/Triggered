@@ -9,3 +9,10 @@ building, testing, formatting, and linting. Keep local configuration and
 secrets out of source control. Prefer reproducible Docker-based development
 services where the relevant story establishes them.
 
+The API reads its SQL Server connection from
+`ConnectionStrings:TriggeredDatabase`. Development uses the non-secret
+LocalDB example in `apps/api/src/Presentation/appsettings.Development.json`;
+other environments should supply `ConnectionStrings__TriggeredDatabase`
+through environment configuration or a secret store. See
+`apps/api/src/Infrastructure/Persistence/Migrations/README.md` for migration
+commands.
