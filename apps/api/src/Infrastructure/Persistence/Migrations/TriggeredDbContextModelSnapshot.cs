@@ -35,6 +35,39 @@ namespace Infrastructure.Persistence.Migrations
 
                     b.ToTable("Foods", (string)null);
                 });
+
+            modelBuilder.Entity("Triggered.Domain.Observation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ConsumedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("FoodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reaction")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FoodId");
+
+                    b.ToTable("Observations", (string)null);
+                });
+
+            modelBuilder.Entity("Triggered.Domain.Observation", b =>
+                {
+                    b.HasOne("Triggered.Domain.Food", "Food")
+                        .WithMany()
+                        .HasForeignKey("FoodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Food");
+                });
 #pragma warning restore 612, 618
         }
     }
