@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Triggered.Application.Abstractions;
 using Triggered.Infrastructure;
 using Triggered.Infrastructure.Persistence;
+using Triggered.Infrastructure.Persistence.Repositories;
 
 namespace Foundation.Tests;
 
@@ -19,6 +21,8 @@ public sealed class InfrastructureTests
         using var context = services.GetRequiredService<TriggeredDbContext>();
 
         Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", context.Database.ProviderName);
+        Assert.IsType<FoodRepository>(services.GetRequiredService<IFoodRepository>());
+        Assert.IsType<ObservationRepository>(services.GetRequiredService<IObservationRepository>());
     }
 
     [Fact]

@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Triggered.Application.Abstractions;
 using Triggered.Infrastructure.Persistence;
+using Triggered.Infrastructure.Persistence.Repositories;
 
 namespace Triggered.Infrastructure;
 
@@ -23,6 +25,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddDbContext<TriggeredDbContext>(options =>
             options.UseSqlServer(connectionString));
+        services.AddScoped<IFoodRepository, FoodRepository>();
+        services.AddScoped<IObservationRepository, ObservationRepository>();
 
         return services;
     }
