@@ -1,6 +1,9 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Triggered.Application.Abstractions;
 using Triggered.Application.UseCases;
@@ -11,6 +14,23 @@ namespace Foundation.Tests;
 
 public sealed class ObservationEndpointTests
 {
+    [Fact]
+    public void MapObservationEndpoints_maps_post_api_route()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddScoped<CreateObservationUseCase>();
+        using var app = builder.Build();
+
+        app.MapObservationEndpoints();
+
+        var endpoint = Assert.Single(
+            ((IEndpointRouteBuilder)app).DataSources
+                .SelectMany(source => source.Endpoints)
+                .OfType<RouteEndpoint>());
+        Assert.Equal("/api/observations", endpoint.RoutePattern.RawText);
+        Assert.Contains("POST", endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods);
+    }
+
     [Fact]
     public async Task CreateObservationAsync_creates_observation_and_returns_created_response()
     {
