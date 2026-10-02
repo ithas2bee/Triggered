@@ -58,6 +58,11 @@ public sealed class CreateObservationUseCaseTests
         {
             return Task.FromResult(food?.Id == id ? food : null);
         }
+
+        public Task AddAsync(Food food, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeObservationRepository : IObservationRepository

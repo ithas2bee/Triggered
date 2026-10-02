@@ -165,6 +165,11 @@ public sealed class ObservationEndpointTests
             LookupCount++;
             return Task.FromResult(food?.Id == id ? food : null);
         }
+
+        public Task AddAsync(Food food, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ThrowingFoodRepository : IFoodRepository
@@ -172,6 +177,11 @@ public sealed class ObservationEndpointTests
         public Task<Food?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             throw new ArgumentException("Consumption time is required.", "consumedAt");
+        }
+
+        public Task AddAsync(Food food, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 
