@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -129,18 +130,161 @@ public sealed class FoodObservationApiIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Get_food_by_id_returns_the_matching_food()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+            var createResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest("Ketchup"));
+            var createdFood = await createResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+            Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+            Assert.NotNull(createdFood);
+
+            var response = await client.GetAsync($"/api/foods/{createdFood.Id}");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var food = await response.Content.ReadFromJsonAsync<FoodResponse>();
+            Assert.NotNull(food);
+            Assert.Equal(createdFood.Id, food.Id);
+            Assert.Equal("Ketchup", food.Name);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Get_food_by_id_returns_not_found_when_food_does_not_exist()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+
+            var response = await client.GetAsync($"/api/foods/{Guid.NewGuid()}");
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Empty(await response.Content.ReadAsByteArrayAsync());
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Get_food_by_id_returns_bad_request_for_invalid_id()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+
+            var response = await client.GetAsync("/api/foods/not-a-guid");
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Swagger_documents_food_by_id_route_parameter_and_responses()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+
+            var response = await client.GetAsync("/swagger/v1/swagger.json");
+            response.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var operation = document.RootElement
+                .GetProperty("paths")
+                .GetProperty("/api/foods/{id}")
+                .GetProperty("get");
+            var parameter = Assert.Single(operation.GetProperty("parameters").EnumerateArray());
+            Assert.Equal("id", parameter.GetProperty("name").GetString());
+            Assert.Equal("path", parameter.GetProperty("in").GetString());
+            Assert.True(parameter.GetProperty("required").GetBoolean());
+            Assert.Equal("string", parameter.GetProperty("schema").GetProperty("type").GetString());
+            Assert.Equal("uuid", parameter.GetProperty("schema").GetProperty("format").GetString());
+
+            var responses = operation.GetProperty("responses");
+            Assert.True(responses.TryGetProperty("200", out var success));
+            Assert.Contains(
+                "FoodResponse",
+                success.GetProperty("content")
+                    .GetProperty("application/json")
+                    .GetProperty("schema")
+                    .GetRawText());
+            Assert.True(responses.TryGetProperty("404", out _));
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
     private static async Task<WebApplication> CreateApiAsync(SqliteConnection connection)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
         builder.Services.AddDbContext<TriggeredDbContext>(options => options.UseSqlite(connection));
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen();
         builder.Services.AddScoped<IFoodRepository, FoodRepository>();
         builder.Services.AddScoped<IObservationRepository, ObservationRepository>();
         builder.Services.AddScoped<CreateFoodUseCase>();
         builder.Services.AddScoped<GetFoodsUseCase>();
+        builder.Services.AddScoped<GetFoodByIdUseCase>();
         builder.Services.AddScoped<CreateObservationUseCase>();
 
         var app = builder.Build();
+        app.UseSwagger();
         app.MapFoodEndpoints();
         app.MapObservationEndpoints();
         await using var scope = app.Services.CreateAsyncScope();
