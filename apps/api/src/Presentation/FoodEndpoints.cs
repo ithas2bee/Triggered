@@ -1,8 +1,9 @@
+using System.ComponentModel.DataAnnotations;
 using Triggered.Application.UseCases;
 
 namespace Triggered.Presentation;
 
-public sealed record CreateFoodRequest(string Name);
+public sealed record CreateFoodRequest([property: Required] string Name);
 
 public sealed record CreatedFoodResponse(Guid Id, string Name);
 
@@ -11,7 +12,7 @@ public static class FoodEndpoints
     public static IEndpointRouteBuilder MapFoodEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/api/foods", CreateFoodAsync)
-            .Accepts<CreateFoodRequest>("application/json")
+            .Accepts<CreateFoodRequest>(false, "application/json")
             .Produces<CreatedFoodResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem();
 
@@ -19,7 +20,7 @@ public static class FoodEndpoints
     }
 
     public static async Task<IResult> CreateFoodAsync(
-        CreateFoodRequest? request,
+        CreateFoodRequest request,
         CreateFoodUseCase useCase,
         CancellationToken cancellationToken)
     {

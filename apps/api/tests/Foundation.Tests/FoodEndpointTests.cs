@@ -31,6 +31,7 @@ public sealed class FoodEndpointTests
         var request = endpoint.Metadata.GetMetadata<IAcceptsMetadata>();
         Assert.NotNull(request);
         Assert.Equal(typeof(CreateFoodRequest), request.RequestType);
+        Assert.False(request.IsOptional);
         var response = Assert.Single(
             endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
             metadata => metadata.StatusCode == StatusCodes.Status201Created);
@@ -69,7 +70,7 @@ public sealed class FoodEndpointTests
         var foodRepository = new FakeFoodRepository();
         var useCase = new CreateFoodUseCase(foodRepository);
 
-        var result = await FoodEndpoints.CreateFoodAsync(null, useCase, CancellationToken.None);
+        var result = await FoodEndpoints.CreateFoodAsync(null!, useCase, CancellationToken.None);
         var response = await ExecuteAsync(result);
 
         Assert.Equal(StatusCodes.Status400BadRequest, response.StatusCode);
