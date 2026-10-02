@@ -45,6 +45,11 @@ public sealed class CreateFoodUseCaseTests
             return Task.FromResult(Foods.SingleOrDefault(food => food.Id == id));
         }
 
+        public Task<IReadOnlyList<Food>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Food>>(Foods);
+        }
+
         public Task AddAsync(Food food, CancellationToken cancellationToken = default)
         {
             Foods.Add(food);

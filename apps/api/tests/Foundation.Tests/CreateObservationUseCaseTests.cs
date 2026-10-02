@@ -59,6 +59,11 @@ public sealed class CreateObservationUseCaseTests
             return Task.FromResult(food?.Id == id ? food : null);
         }
 
+        public Task<IReadOnlyList<Food>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Food>>([]);
+        }
+
         public Task AddAsync(Food food, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;

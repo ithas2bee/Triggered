@@ -9,6 +9,34 @@ namespace Foundation.Tests;
 public sealed class RepositoryPersistenceTests
 {
     [Fact]
+    public async Task FoodRepository_gets_all_foods_from_database()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<TriggeredDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var foods = new[] { new Food("Oatmeal"), new Food("Pizza") };
+
+        await using (var seedContext = new TriggeredDbContext(options))
+        {
+            await seedContext.Database.EnsureCreatedAsync();
+            await seedContext.Foods.AddRangeAsync(foods);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var context = new TriggeredDbContext(options);
+        var result = await new FoodRepository(context).GetAllAsync();
+
+        Assert.Equal(foods.Length, result.Count);
+        foreach (var food in foods)
+        {
+            Assert.Contains(result, persistedFood =>
+                persistedFood.Id == food.Id && persistedFood.Name == food.Name);
+        }
+    }
+
+    [Fact]
     public async Task FoodRepository_gets_food_by_id_from_database()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

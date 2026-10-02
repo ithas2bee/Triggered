@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<CreateObservationUseCase>();
 builder.Services.AddScoped<CreateFoodUseCase>();
+builder.Services.AddScoped<GetFoodsUseCase>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
