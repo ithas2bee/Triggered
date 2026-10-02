@@ -18,5 +18,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapObservationEndpoints();
+app.MapFoodEndpoints();
 
 app.Run();
