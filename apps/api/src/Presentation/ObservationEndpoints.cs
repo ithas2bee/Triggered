@@ -18,7 +18,11 @@ public static class ObservationEndpoints
     public static IEndpointRouteBuilder MapObservationEndpoints(
         this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/observations", CreateObservationAsync);
+        endpoints.MapPost("/api/observations", CreateObservationAsync)
+            .Accepts<CreateObservationRequest>("application/json")
+            .Produces<CreatedObservationResponse>(StatusCodes.Status201Created)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem();
         return endpoints;
     }
 

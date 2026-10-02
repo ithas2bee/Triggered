@@ -32,6 +32,26 @@ public sealed class ObservationEndpointTests
     }
 
     [Fact]
+    public void MapObservationEndpoints_describes_observation_contracts()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddScoped<CreateObservationUseCase>();
+        using var app = builder.Build();
+
+        app.MapObservationEndpoints();
+
+        var endpoint = Assert.Single(
+            ((IEndpointRouteBuilder)app).DataSources
+                .SelectMany(source => source.Endpoints)
+                .OfType<RouteEndpoint>());
+        var response = Assert.Single(
+            endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status201Created);
+
+        Assert.Equal(typeof(CreatedObservationResponse), response.Type);
+    }
+
+    [Fact]
     public async Task CreateObservationAsync_creates_observation_and_returns_created_response()
     {
         var food = new Food("Ketchup");
