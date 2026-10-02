@@ -16,6 +16,11 @@ public static class FoodEndpoints
         endpoints.MapGet("/api/foods", GetFoodsAsync)
             .Produces<FoodResponse[]>(StatusCodes.Status200OK);
 
+        endpoints.MapGet("/api/foods/{id}", GetFoodByIdAsync)
+            .Produces<FoodResponse>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem();
+
         endpoints.MapPost("/api/foods", CreateFoodAsync)
             .Accepts<CreateFoodRequest>(false, "application/json")
             .Produces<CreatedFoodResponse>(StatusCodes.Status201Created)
@@ -30,6 +35,17 @@ public static class FoodEndpoints
     {
         var foods = await useCase.ExecuteAsync(cancellationToken);
         return Results.Ok(foods.Select(food => new FoodResponse(food.Id, food.Name)).ToArray());
+    }
+
+    public static async Task<IResult> GetFoodByIdAsync(
+        Guid id,
+        GetFoodByIdUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        var food = await useCase.ExecuteAsync(id, cancellationToken);
+        return food is null
+            ? Results.NotFound()
+            : Results.Ok(new FoodResponse(food.Id, food.Name));
     }
 
     public static async Task<IResult> CreateFoodAsync(

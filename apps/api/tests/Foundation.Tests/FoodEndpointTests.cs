@@ -19,6 +19,7 @@ public sealed class FoodEndpointTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddScoped<CreateFoodUseCase>();
         builder.Services.AddScoped<GetFoodsUseCase>();
+        builder.Services.AddScoped<GetFoodByIdUseCase>();
         using var app = builder.Build();
 
         app.MapFoodEndpoints();
@@ -30,12 +31,29 @@ public sealed class FoodEndpointTests
                 .ToArray();
         var getEndpoint = Assert.Single(
             endpoints,
-            endpoint => endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+            endpoint => endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("GET")
+                && endpoint.RoutePattern.RawText == "/api/foods");
         Assert.Equal("/api/foods", getEndpoint.RoutePattern.RawText);
         var getResponse = Assert.Single(
             getEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
             metadata => metadata.StatusCode == StatusCodes.Status200OK);
         Assert.Equal(typeof(FoodResponse[]), getResponse.Type);
+
+        var getFoodByIdEndpoint = Assert.Single(
+            endpoints,
+            endpoint => endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("GET")
+                && endpoint.RoutePattern.RawText == "/api/foods/{id}");
+        Assert.Contains(getFoodByIdEndpoint.RoutePattern.Parameters, parameter => parameter.Name == "id");
+        Assert.Contains(
+            getFoodByIdEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status200OK
+                && metadata.Type == typeof(FoodResponse));
+        Assert.Contains(
+            getFoodByIdEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status404NotFound);
+        Assert.Contains(
+            getFoodByIdEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status400BadRequest);
 
         var postEndpoint = Assert.Single(
             endpoints,
@@ -89,6 +107,38 @@ public sealed class FoodEndpointTests
             response.Body,
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.Empty(returnedFoods!);
+    }
+
+    [Fact]
+    public async Task GetFoodByIdAsync_returns_food_response_with_only_id_and_name()
+    {
+        var foods = new[] { new Food("Ketchup"), new Food("Pizza") };
+        var useCase = new GetFoodByIdUseCase(new FakeFoodRepository(foods));
+
+        var result = await FoodEndpoints.GetFoodByIdAsync(
+            foods[0].Id,
+            useCase,
+            CancellationToken.None);
+        var response = await ExecuteAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        using var json = await JsonDocument.ParseAsync(response.Body);
+        var properties = json.RootElement.EnumerateObject().Select(property => property.Name).Order().ToArray();
+        Assert.Equal(["id", "name"], properties);
+        Assert.Equal(foods[0].Id, json.RootElement.GetProperty("id").GetGuid());
+        Assert.Equal("Ketchup", json.RootElement.GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task GetFoodByIdAsync_returns_not_found_when_food_does_not_exist()
+    {
+        var useCase = new GetFoodByIdUseCase(new FakeFoodRepository());
+
+        var result = await FoodEndpoints.GetFoodByIdAsync(Guid.NewGuid(), useCase, CancellationToken.None);
+        var response = await ExecuteAsync(result);
+
+        Assert.Equal(StatusCodes.Status404NotFound, response.StatusCode);
+        Assert.Equal(0, response.Body.Length);
     }
 
     [Fact]
