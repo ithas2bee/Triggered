@@ -23,22 +23,7 @@ public sealed class FoodObservationApiIntegrationTests
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
-        builder.Services.AddDbContext<TriggeredDbContext>(options => options.UseSqlite(connection));
-        builder.Services.AddScoped<IFoodRepository, FoodRepository>();
-        builder.Services.AddScoped<IObservationRepository, ObservationRepository>();
-        builder.Services.AddScoped<CreateFoodUseCase>();
-        builder.Services.AddScoped<CreateObservationUseCase>();
-
-        await using var app = builder.Build();
-        app.MapFoodEndpoints();
-        app.MapObservationEndpoints();
-
-        await using (var context = app.Services.GetRequiredService<TriggeredDbContext>())
-        {
-            await context.Database.EnsureCreatedAsync();
-        }
+        await using var app = await CreateApiAsync(connection);
 
         await app.StartAsync();
         try
@@ -80,6 +65,21 @@ public sealed class FoodObservationApiIntegrationTests
 
             Assert.Equal(HttpStatusCode.NotFound, missingFoodResponse.StatusCode);
 
+            var secondFoodResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest("Pizza"));
+            Assert.Equal(HttpStatusCode.Created, secondFoodResponse.StatusCode);
+            var secondFood = await secondFoodResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+            Assert.NotNull(secondFood);
+
+            var foodsResponse = await client.GetAsync("/api/foods");
+            Assert.Equal(HttpStatusCode.OK, foodsResponse.StatusCode);
+            var returnedFoods = await foodsResponse.Content.ReadFromJsonAsync<FoodResponse[]>();
+            Assert.NotNull(returnedFoods);
+            Assert.Equal(2, returnedFoods.Length);
+            Assert.Contains(returnedFoods, food => food.Id == createdFood.Id && food.Name == "Ketchup");
+            Assert.Contains(returnedFoods, food => food.Id == secondFood.Id && food.Name == "Pizza");
+
             await using var verificationScope = app.Services.CreateAsyncScope();
             await using var verificationContext =
                 verificationScope.ServiceProvider.GetRequiredService<TriggeredDbContext>();
@@ -99,5 +99,53 @@ public sealed class FoodObservationApiIntegrationTests
         {
             await app.StopAsync();
         }
+    }
+
+    [Fact]
+    public async Task Get_foods_returns_empty_collection_when_database_has_no_foods()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+
+            var response = await client.GetAsync("/api/foods");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Empty((await response.Content.ReadFromJsonAsync<FoodResponse[]>())!);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    private static async Task<WebApplication> CreateApiAsync(SqliteConnection connection)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
+        builder.Services.AddDbContext<TriggeredDbContext>(options => options.UseSqlite(connection));
+        builder.Services.AddScoped<IFoodRepository, FoodRepository>();
+        builder.Services.AddScoped<IObservationRepository, ObservationRepository>();
+        builder.Services.AddScoped<CreateFoodUseCase>();
+        builder.Services.AddScoped<GetFoodsUseCase>();
+        builder.Services.AddScoped<CreateObservationUseCase>();
+
+        var app = builder.Build();
+        app.MapFoodEndpoints();
+        app.MapObservationEndpoints();
+        await using var scope = app.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<TriggeredDbContext>()
+            .Database.EnsureCreatedAsync();
+        return app;
     }
 }

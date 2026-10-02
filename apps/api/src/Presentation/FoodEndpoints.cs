@@ -7,16 +7,29 @@ public sealed record CreateFoodRequest([property: Required] string Name);
 
 public sealed record CreatedFoodResponse(Guid Id, string Name);
 
+public sealed record FoodResponse(Guid Id, string Name);
+
 public static class FoodEndpoints
 {
     public static IEndpointRouteBuilder MapFoodEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/api/foods", GetFoodsAsync)
+            .Produces<FoodResponse[]>(StatusCodes.Status200OK);
+
         endpoints.MapPost("/api/foods", CreateFoodAsync)
             .Accepts<CreateFoodRequest>(false, "application/json")
             .Produces<CreatedFoodResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem();
 
         return endpoints;
+    }
+
+    public static async Task<IResult> GetFoodsAsync(
+        GetFoodsUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        var foods = await useCase.ExecuteAsync(cancellationToken);
+        return Results.Ok(foods.Select(food => new FoodResponse(food.Id, food.Name)).ToArray());
     }
 
     public static async Task<IResult> CreateFoodAsync(

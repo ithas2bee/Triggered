@@ -14,31 +14,81 @@ namespace Foundation.Tests;
 public sealed class FoodEndpointTests
 {
     [Fact]
-    public void MapFoodEndpoints_maps_post_api_route_and_documents_response()
+    public void MapFoodEndpoints_maps_get_and_post_routes_and_documents_responses()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddScoped<CreateFoodUseCase>();
+        builder.Services.AddScoped<GetFoodsUseCase>();
         using var app = builder.Build();
 
         app.MapFoodEndpoints();
 
-        var endpoint = Assert.Single(
+        var endpoints =
             ((IEndpointRouteBuilder)app).DataSources
                 .SelectMany(source => source.Endpoints)
-                .OfType<RouteEndpoint>());
-        Assert.Equal("/api/foods", endpoint.RoutePattern.RawText);
-        Assert.Contains("POST", endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods);
-        var request = endpoint.Metadata.GetMetadata<IAcceptsMetadata>();
+                .OfType<RouteEndpoint>()
+                .ToArray();
+        var getEndpoint = Assert.Single(
+            endpoints,
+            endpoint => endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+        Assert.Equal("/api/foods", getEndpoint.RoutePattern.RawText);
+        var getResponse = Assert.Single(
+            getEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status200OK);
+        Assert.Equal(typeof(FoodResponse[]), getResponse.Type);
+
+        var postEndpoint = Assert.Single(
+            endpoints,
+            endpoint => endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("POST"));
+        Assert.Equal("/api/foods", postEndpoint.RoutePattern.RawText);
+        var request = postEndpoint.Metadata.GetMetadata<IAcceptsMetadata>();
         Assert.NotNull(request);
         Assert.Equal(typeof(CreateFoodRequest), request.RequestType);
         Assert.False(request.IsOptional);
         var response = Assert.Single(
-            endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            postEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
             metadata => metadata.StatusCode == StatusCodes.Status201Created);
         Assert.Equal(typeof(CreatedFoodResponse), response.Type);
         Assert.Contains(
-            endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            postEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
             metadata => metadata.StatusCode == StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task GetFoodsAsync_returns_food_ids_and_names()
+    {
+        var foods = new[] { new Food("Ketchup"), new Food("Pizza") };
+        var useCase = new GetFoodsUseCase(new FakeFoodRepository(foods));
+
+        var result = await FoodEndpoints.GetFoodsAsync(useCase, CancellationToken.None);
+        var response = await ExecuteAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        var returnedFoods = await JsonSerializer.DeserializeAsync<FoodResponse[]>(
+            response.Body,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(returnedFoods);
+        Assert.Equal(foods.Length, returnedFoods.Length);
+        foreach (var food in foods)
+        {
+            Assert.Contains(returnedFoods, returnedFood =>
+                returnedFood.Id == food.Id && returnedFood.Name == food.Name);
+        }
+    }
+
+    [Fact]
+    public async Task GetFoodsAsync_returns_empty_collection_when_no_foods_exist()
+    {
+        var useCase = new GetFoodsUseCase(new FakeFoodRepository([]));
+
+        var result = await FoodEndpoints.GetFoodsAsync(useCase, CancellationToken.None);
+        var response = await ExecuteAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        var returnedFoods = await JsonSerializer.DeserializeAsync<FoodResponse[]>(
+            response.Body,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Empty(returnedFoods!);
     }
 
     [Fact]
@@ -119,9 +169,22 @@ public sealed class FoodEndpointTests
     {
         public List<Food> Foods { get; } = [];
 
+        public FakeFoodRepository(IEnumerable<Food>? foods = null)
+        {
+            if (foods is not null)
+            {
+                Foods.AddRange(foods);
+            }
+        }
+
         public Task<Food?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(Foods.SingleOrDefault(food => food.Id == id));
+        }
+
+        public Task<IReadOnlyList<Food>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Food>>(Foods);
         }
 
         public Task AddAsync(Food food, CancellationToken cancellationToken = default)

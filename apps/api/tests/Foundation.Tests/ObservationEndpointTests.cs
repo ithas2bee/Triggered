@@ -166,6 +166,11 @@ public sealed class ObservationEndpointTests
             return Task.FromResult(food?.Id == id ? food : null);
         }
 
+        public Task<IReadOnlyList<Food>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Food>>([]);
+        }
+
         public Task AddAsync(Food food, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -177,6 +182,11 @@ public sealed class ObservationEndpointTests
         public Task<Food?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             throw new ArgumentException("Consumption time is required.", "consumedAt");
+        }
+
+        public Task<IReadOnlyList<Food>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<Food>>([]);
         }
 
         public Task AddAsync(Food food, CancellationToken cancellationToken = default)
