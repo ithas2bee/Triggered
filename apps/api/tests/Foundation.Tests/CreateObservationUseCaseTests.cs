@@ -74,6 +74,9 @@ public sealed class CreateObservationUseCaseTests
     {
         public List<Observation> Observations { get; } = [];
 
+        public Task<IReadOnlyList<Observation>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Observation>>(Observations);
+
         public Task AddAsync(Observation observation, CancellationToken cancellationToken = default)
         {
             Observations.Add(observation);

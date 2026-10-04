@@ -19,6 +19,7 @@ public sealed class ObservationEndpointTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddScoped<CreateObservationUseCase>();
+        builder.Services.AddScoped<GetObservationsUseCase>();
         using var app = builder.Build();
 
         app.MapObservationEndpoints();
@@ -26,15 +27,17 @@ public sealed class ObservationEndpointTests
         var endpoint = Assert.Single(
             ((IEndpointRouteBuilder)app).DataSources
                 .SelectMany(source => source.Endpoints)
-                .OfType<RouteEndpoint>());
+                .OfType<RouteEndpoint>(),
+            candidate => candidate.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("POST"));
         Assert.Equal("/api/observations", endpoint.RoutePattern.RawText);
         Assert.Contains("POST", endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods);
     }
 
     [Fact]
-    public void MapObservationEndpoints_describes_observation_contracts()
+    public void MapObservationEndpoints_maps_get_api_route_with_collection_response()
     {
         var builder = WebApplication.CreateBuilder();
+        builder.Services.AddScoped<GetObservationsUseCase>();
         builder.Services.AddScoped<CreateObservationUseCase>();
         using var app = builder.Build();
 
@@ -43,7 +46,30 @@ public sealed class ObservationEndpointTests
         var endpoint = Assert.Single(
             ((IEndpointRouteBuilder)app).DataSources
                 .SelectMany(source => source.Endpoints)
-                .OfType<RouteEndpoint>());
+                .OfType<RouteEndpoint>(),
+            candidate => candidate.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+        Assert.Equal("/api/observations", endpoint.RoutePattern.RawText);
+        var response = Assert.Single(
+            endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status200OK);
+        Assert.Equal(typeof(ObservationResponse[]), response.Type);
+    }
+
+    [Fact]
+    public void MapObservationEndpoints_describes_observation_contracts()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddScoped<CreateObservationUseCase>();
+        builder.Services.AddScoped<GetObservationsUseCase>();
+        using var app = builder.Build();
+
+        app.MapObservationEndpoints();
+
+        var endpoint = Assert.Single(
+            ((IEndpointRouteBuilder)app).DataSources
+                .SelectMany(source => source.Endpoints)
+                .OfType<RouteEndpoint>(),
+            candidate => candidate.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("POST"));
         var response = Assert.Single(
             endpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
             metadata => metadata.StatusCode == StatusCodes.Status201Created);
@@ -77,6 +103,30 @@ public sealed class ObservationEndpointTests
         Assert.Equal(consumedAt, created.ConsumedAt);
         Assert.Equal("Heartburn", created.Reaction);
         Assert.Equal(created.Id, Assert.Single(observationRepository.Observations).Id);
+    }
+
+    [Fact]
+    public async Task GetObservationsAsync_maps_observations_to_response_models()
+    {
+        var food = new Food("Ketchup");
+        var observations = new[]
+        {
+            new Observation(food, new DateTimeOffset(2026, 9, 29, 12, 30, 0, TimeSpan.Zero), "Heartburn")
+        };
+        var useCase = new GetObservationsUseCase(new FakeObservationRepository(observations));
+
+        var result = await ObservationEndpoints.GetObservationsAsync(useCase, CancellationToken.None);
+        var response = await ExecuteAsync(result);
+        var returned = await JsonSerializer.DeserializeAsync<ObservationResponse[]>(
+            response.Body,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        var observation = Assert.Single(returned!);
+        Assert.Equal(observations[0].Id, observation.Id);
+        Assert.Equal(food.Id, observation.FoodId);
+        Assert.Equal(observations[0].ConsumedAt, observation.ConsumedAt);
+        Assert.Equal(observations[0].Reaction, observation.Reaction);
     }
 
     [Fact]
@@ -197,7 +247,17 @@ public sealed class ObservationEndpointTests
 
     private sealed class FakeObservationRepository : IObservationRepository
     {
+        private readonly IReadOnlyList<Observation> observations;
+
+        public FakeObservationRepository(IReadOnlyList<Observation>? observations = null)
+        {
+            this.observations = observations ?? [];
+        }
+
         public List<Observation> Observations { get; } = [];
+
+        public Task<IReadOnlyList<Observation>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(observations);
 
         public Task AddAsync(Observation observation, CancellationToken cancellationToken = default)
         {

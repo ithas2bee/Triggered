@@ -8,6 +8,7 @@ builder.Services.AddScoped<CreateObservationUseCase>();
 builder.Services.AddScoped<CreateFoodUseCase>();
 builder.Services.AddScoped<GetFoodsUseCase>();
 builder.Services.AddScoped<GetFoodByIdUseCase>();
+builder.Services.AddScoped<GetObservationsUseCase>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

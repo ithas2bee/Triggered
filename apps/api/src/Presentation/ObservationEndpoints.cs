@@ -13,17 +13,38 @@ public sealed record CreatedObservationResponse(
     DateTimeOffset ConsumedAt,
     string Reaction);
 
+public sealed record ObservationResponse(
+    Guid Id,
+    Guid FoodId,
+    DateTimeOffset ConsumedAt,
+    string Reaction);
+
 public static class ObservationEndpoints
 {
     public static IEndpointRouteBuilder MapObservationEndpoints(
         this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/api/observations", GetObservationsAsync)
+            .Produces<ObservationResponse[]>(StatusCodes.Status200OK);
+
         endpoints.MapPost("/api/observations", CreateObservationAsync)
             .Accepts<CreateObservationRequest>("application/json")
             .Produces<CreatedObservationResponse>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status404NotFound)
             .ProducesValidationProblem();
         return endpoints;
+    }
+
+    public static async Task<IResult> GetObservationsAsync(
+        GetObservationsUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        var observations = await useCase.ExecuteAsync(cancellationToken);
+        return Results.Ok(observations.Select(observation => new ObservationResponse(
+            observation.Id,
+            observation.FoodId,
+            observation.ConsumedAt,
+            observation.Reaction)).ToArray());
     }
 
     public static async Task<IResult> CreateObservationAsync(

@@ -100,4 +100,36 @@ public sealed class RepositoryPersistenceTests
         Assert.Equal(consumedAt, persistedObservation.ConsumedAt);
         Assert.Equal(observation.Reaction, persistedObservation.Reaction);
     }
+
+    [Fact]
+    public async Task ObservationRepository_gets_observations_ordered_by_consumed_at_descending()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<TriggeredDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var food = new Food("Oatmeal");
+        var earlierObservation = new Observation(
+            food,
+            new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero),
+            "Heartburn");
+        var laterObservation = new Observation(
+            food,
+            new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero),
+            "Bloating");
+
+        await using (var seedContext = new TriggeredDbContext(options))
+        {
+            await seedContext.Database.EnsureCreatedAsync();
+            await seedContext.Observations.AddRangeAsync(earlierObservation, laterObservation);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var context = new TriggeredDbContext(options);
+
+        var result = await new ObservationRepository(context).GetAllAsync();
+
+        Assert.Equal([laterObservation.Id, earlierObservation.Id], result.Select(observation => observation.Id));
+    }
 }
