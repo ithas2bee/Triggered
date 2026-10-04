@@ -132,4 +132,37 @@ public sealed class RepositoryPersistenceTests
 
         Assert.Equal([laterObservation.Id, earlierObservation.Id], result.Select(observation => observation.Id));
     }
+
+    [Fact]
+    public async Task ObservationRepository_gets_observations_for_food_only()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<TriggeredDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var requestedFood = new Food("Ketchup");
+        var otherFood = new Food("Mustard");
+        var requestedObservation = new Observation(
+            requestedFood,
+            new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero),
+            "Heartburn");
+        var otherObservation = new Observation(
+            otherFood,
+            new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero),
+            "Bloating");
+
+        await using (var seedContext = new TriggeredDbContext(options))
+        {
+            await seedContext.Database.EnsureCreatedAsync();
+            await seedContext.Foods.AddRangeAsync(requestedFood, otherFood);
+            await seedContext.Observations.AddRangeAsync(requestedObservation, otherObservation);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var context = new TriggeredDbContext(options);
+        var result = await new ObservationRepository(context).GetByFoodIdAsync(requestedFood.Id);
+
+        Assert.Equal([requestedObservation.Id], result.Select(observation => observation.Id));
+    }
 }

@@ -259,6 +259,12 @@ public sealed class ObservationEndpointTests
         public Task<IReadOnlyList<Observation>> GetAllAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(observations);
 
+        public Task<IReadOnlyList<Observation>> GetByFoodIdAsync(
+            Guid foodId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Observation>>(
+                observations.Where(observation => observation.FoodId == foodId).ToArray());
+
         public Task AddAsync(Observation observation, CancellationToken cancellationToken = default)
         {
             Observations.Add(observation);

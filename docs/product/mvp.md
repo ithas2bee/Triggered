@@ -26,8 +26,34 @@ Initial conceptual levels are:
 6. Strong Trigger Pattern
 
 These levels describe the strength of an observed personal pattern. They are
-not medical diagnoses or risk classifications. The analysis algorithm remains
-to be defined by a future story.
+not medical diagnoses or risk classifications.
+
+### Initial food-response pattern calculation
+
+The first calculation uses only observations associated with the requested
+food. Fewer than three observations produce **Insufficient Data**; this
+minimum is a simple guard against drawing a pattern from one or two reports,
+not a clinically validated sample size.
+
+An observation counts as a reported reaction unless its recorded reaction is
+exactly “No reaction” after trimming surrounding whitespace and ignoring case.
+All other recorded values count equally; their wording and severity are not
+interpreted. The result is based on the percentage of that food's observations
+with a reported reaction:
+
+| Reported-reaction percentage | Level |
+| --- | --- |
+| 0–20% | Low |
+| More than 20–40% | Possible Trigger |
+| More than 40–60% | Moderate |
+| More than 60–80% | Likely Trigger |
+| More than 80% | Strong Trigger Pattern |
+
+The five equal-width bands make the initial calculation easy to explain and
+reproduce. For example, three reported reactions among four observations yield
+75% and **Likely Trigger**. These are initial product rules, not medical
+thresholds or evidence of causation; they should be revisited if the product
+defines a more suitable evidence model.
 
 ## Product principles
 
@@ -46,4 +72,3 @@ Weight, calories, exercise, sleep, medication, wearables, medical records,
 provider portals, diagnosis, AI diagnosis, medical recommendations, meal
 planning, nutrition coaching, social or community features, restaurant
 integrations, and grocery integrations are not MVP capabilities.
-
