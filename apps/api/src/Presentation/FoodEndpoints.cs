@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Triggered.Application.UseCases;
+using Triggered.Domain;
 
 namespace Triggered.Presentation;
 
