@@ -77,6 +77,12 @@ public sealed class CreateObservationUseCaseTests
         public Task<IReadOnlyList<Observation>> GetAllAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Observation>>(Observations);
 
+        public Task<IReadOnlyList<Observation>> GetByFoodIdAsync(
+            Guid foodId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Observation>>(
+                Observations.Where(observation => observation.FoodId == foodId).ToArray());
+
         public Task AddAsync(Observation observation, CancellationToken cancellationToken = default)
         {
             Observations.Add(observation);
