@@ -9,6 +9,8 @@ public sealed record CreatedFoodResponse(Guid Id, string Name);
 
 public sealed record FoodResponse(Guid Id, string Name);
 
+public sealed record FoodTriggerPatternResponse(Guid FoodId, string Pattern);
+
 public static class FoodEndpoints
 {
     public static IEndpointRouteBuilder MapFoodEndpoints(this IEndpointRouteBuilder endpoints)
@@ -18,6 +20,11 @@ public static class FoodEndpoints
 
         endpoints.MapGet("/api/foods/{id}", GetFoodByIdAsync)
             .Produces<FoodResponse>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem();
+
+        endpoints.MapGet("/api/foods/{foodId}/trigger-pattern", GetFoodTriggerPatternAsync)
+            .Produces<FoodTriggerPatternResponse>(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status404NotFound)
             .ProducesValidationProblem();
 
@@ -46,6 +53,33 @@ public static class FoodEndpoints
         return food is null
             ? Results.NotFound()
             : Results.Ok(new FoodResponse(food.Id, food.Name));
+    }
+
+    public static async Task<IResult> GetFoodTriggerPatternAsync(
+        Guid foodId,
+        GetFoodByIdUseCase getFoodByIdUseCase,
+        CalculateFoodTriggerPatternUseCase calculateFoodTriggerPatternUseCase,
+        CancellationToken cancellationToken)
+    {
+        var food = await getFoodByIdUseCase.ExecuteAsync(foodId, cancellationToken);
+        if (food is null)
+        {
+            return Results.NotFound();
+        }
+
+        var pattern = await calculateFoodTriggerPatternUseCase.ExecuteAsync(foodId, cancellationToken);
+        var patternName = pattern.Level switch
+        {
+            FoodTriggerPatternLevel.InsufficientData => "Insufficient Data",
+            FoodTriggerPatternLevel.Low => "Low",
+            FoodTriggerPatternLevel.PossibleTrigger => "Possible Trigger",
+            FoodTriggerPatternLevel.Moderate => "Moderate",
+            FoodTriggerPatternLevel.LikelyTrigger => "Likely Trigger",
+            FoodTriggerPatternLevel.StrongTriggerPattern => "Strong Trigger Pattern",
+            _ => throw new ArgumentOutOfRangeException(nameof(pattern), pattern.Level, null)
+        };
+
+        return Results.Ok(new FoodTriggerPatternResponse(foodId, patternName));
     }
 
     public static async Task<IResult> CreateFoodAsync(
