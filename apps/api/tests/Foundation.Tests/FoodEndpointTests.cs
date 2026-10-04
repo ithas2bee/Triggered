@@ -20,6 +20,7 @@ public sealed class FoodEndpointTests
         builder.Services.AddScoped<CreateFoodUseCase>();
         builder.Services.AddScoped<GetFoodsUseCase>();
         builder.Services.AddScoped<GetFoodByIdUseCase>();
+        builder.Services.AddScoped<CalculateFoodTriggerPatternUseCase>();
         using var app = builder.Build();
 
         app.MapFoodEndpoints();
@@ -53,6 +54,21 @@ public sealed class FoodEndpointTests
             metadata => metadata.StatusCode == StatusCodes.Status404NotFound);
         Assert.Contains(
             getFoodByIdEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status400BadRequest);
+
+        var getFoodTriggerPatternEndpoint = Assert.Single(
+            endpoints,
+            endpoint => endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("GET")
+                && endpoint.RoutePattern.RawText == "/api/foods/{foodId}/trigger-pattern");
+        Assert.Contains(
+            getFoodTriggerPatternEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status200OK
+                && metadata.Type == typeof(FoodTriggerPatternResponse));
+        Assert.Contains(
+            getFoodTriggerPatternEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
+            metadata => metadata.StatusCode == StatusCodes.Status404NotFound);
+        Assert.Contains(
+            getFoodTriggerPatternEndpoint.Metadata.GetOrderedMetadata<IProducesResponseTypeMetadata>(),
             metadata => metadata.StatusCode == StatusCodes.Status400BadRequest);
 
         var postEndpoint = Assert.Single(

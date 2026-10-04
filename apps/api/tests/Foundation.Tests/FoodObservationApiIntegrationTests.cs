@@ -245,6 +245,62 @@ public sealed class FoodObservationApiIntegrationTests
     }
 
     [Fact]
+    public async Task Get_food_trigger_pattern_returns_calculated_levels_and_handles_invalid_food_ids()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+            var likelyFoodId = await CreateFoodAsync(
+                client,
+                "Ketchup",
+                "Reflux",
+                "Reflux",
+                "No reaction",
+                "Reflux");
+            var insufficientFoodId = await CreateFoodAsync(client, "Pizza", "Reflux", "Bloating");
+            var noObservationsFoodId = await CreateFoodAsync(client, "Rice");
+
+            foreach (var (foodId, expectedPattern) in new[]
+            {
+                (likelyFoodId, "Likely Trigger"),
+                (insufficientFoodId, "Insufficient Data"),
+                (noObservationsFoodId, "Insufficient Data")
+            })
+            {
+                var response = await client.GetAsync($"/api/foods/{foodId}/trigger-pattern");
+
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var pattern = await response.Content.ReadFromJsonAsync<FoodTriggerPatternResponse>();
+                Assert.NotNull(pattern);
+                Assert.Equal(foodId, pattern.FoodId);
+                Assert.Equal(expectedPattern, pattern.Pattern);
+            }
+
+            var unknownFoodResponse =
+                await client.GetAsync($"/api/foods/{Guid.NewGuid()}/trigger-pattern");
+            var invalidFoodIdResponse =
+                await client.GetAsync("/api/foods/not-a-guid/trigger-pattern");
+
+            Assert.Equal(HttpStatusCode.NotFound, unknownFoodResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, invalidFoodIdResponse.StatusCode);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Swagger_documents_food_by_id_route_parameter_and_responses()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -285,6 +341,23 @@ public sealed class FoodObservationApiIntegrationTests
                     .GetRawText());
             Assert.True(responses.TryGetProperty("404", out _));
 
+            var patternOperation = document.RootElement
+                .GetProperty("paths")
+                .GetProperty("/api/foods/{foodId}/trigger-pattern")
+                .GetProperty("get");
+            var patternParameter = Assert.Single(patternOperation.GetProperty("parameters").EnumerateArray());
+            Assert.Equal("foodId", patternParameter.GetProperty("name").GetString());
+            var patternResponses = patternOperation.GetProperty("responses");
+            Assert.True(patternResponses.TryGetProperty("200", out var patternSuccess));
+            Assert.Contains(
+                "FoodTriggerPatternResponse",
+                patternSuccess.GetProperty("content")
+                    .GetProperty("application/json")
+                    .GetProperty("schema")
+                    .GetRawText());
+            Assert.True(patternResponses.TryGetProperty("404", out _));
+            Assert.True(patternResponses.TryGetProperty("400", out _));
+
             var observationsOperation = document.RootElement
                 .GetProperty("paths")
                 .GetProperty("/api/observations")
@@ -317,6 +390,7 @@ public sealed class FoodObservationApiIntegrationTests
         builder.Services.AddScoped<GetFoodByIdUseCase>();
         builder.Services.AddScoped<CreateObservationUseCase>();
         builder.Services.AddScoped<GetObservationsUseCase>();
+        builder.Services.AddScoped<CalculateFoodTriggerPatternUseCase>();
 
         var app = builder.Build();
         app.UseSwagger();
@@ -326,5 +400,27 @@ public sealed class FoodObservationApiIntegrationTests
         await scope.ServiceProvider.GetRequiredService<TriggeredDbContext>()
             .Database.EnsureCreatedAsync();
         return app;
+    }
+
+    private static async Task<Guid> CreateFoodAsync(
+        HttpClient client,
+        string name,
+        params string[] reactions)
+    {
+        var foodResponse = await client.PostAsJsonAsync("/api/foods", new CreateFoodRequest(name));
+        Assert.Equal(HttpStatusCode.Created, foodResponse.StatusCode);
+        var food = await foodResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+        Assert.NotNull(food);
+
+        var consumedAt = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+        foreach (var reaction in reactions)
+        {
+            var observationResponse = await client.PostAsJsonAsync(
+                "/api/observations",
+                new CreateObservationRequest(food.Id, consumedAt, reaction));
+            Assert.Equal(HttpStatusCode.Created, observationResponse.StatusCode);
+        }
+
+        return food.Id;
     }
 }
