@@ -301,6 +301,92 @@ public sealed class FoodObservationApiIntegrationTests
     }
 
     [Fact]
+    public async Task Get_food_observations_returns_only_food_history_newest_first_and_handles_missing_foods()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+            var foodResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest("Ketchup"));
+            var food = await foodResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+            Assert.Equal(HttpStatusCode.Created, foodResponse.StatusCode);
+            Assert.NotNull(food);
+
+            var otherFoodResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest("Mustard"));
+            var otherFood = await otherFoodResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+            Assert.Equal(HttpStatusCode.Created, otherFoodResponse.StatusCode);
+            Assert.NotNull(otherFood);
+
+            var earlierConsumedAt = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+            var laterConsumedAt = new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
+            var earlierObservation = await CreateObservationAsync(
+                client,
+                food.Id,
+                earlierConsumedAt,
+                "No reaction");
+            var laterObservation = await CreateObservationAsync(
+                client,
+                food.Id,
+                laterConsumedAt,
+                "Reflux");
+            await CreateObservationAsync(
+                client,
+                otherFood.Id,
+                laterConsumedAt.AddDays(1),
+                "Bloating");
+
+            var response = await client.GetAsync($"/api/foods/{food.Id}/observations");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var observations = await response.Content.ReadFromJsonAsync<ObservationResponse[]>();
+            Assert.NotNull(observations);
+            Assert.Equal([laterObservation.Id, earlierObservation.Id], observations.Select(item => item.Id));
+            Assert.Equal(food.Id, observations[0].FoodId);
+            Assert.Equal(laterConsumedAt, observations[0].ConsumedAt);
+            Assert.Equal("Reflux", observations[0].Reaction);
+
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(
+                ["consumedAt", "foodId", "id", "reaction"],
+                json.RootElement[0].EnumerateObject().Select(property => property.Name).Order().ToArray());
+
+            var emptyFoodResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest("Rice"));
+            var emptyFood = await emptyFoodResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+            Assert.Equal(HttpStatusCode.Created, emptyFoodResponse.StatusCode);
+            Assert.NotNull(emptyFood);
+
+            var emptyHistoryResponse = await client.GetAsync($"/api/foods/{emptyFood.Id}/observations");
+            Assert.Equal(HttpStatusCode.OK, emptyHistoryResponse.StatusCode);
+            Assert.Empty((await emptyHistoryResponse.Content.ReadFromJsonAsync<ObservationResponse[]>())!);
+
+            var unknownFoodResponse =
+                await client.GetAsync($"/api/foods/{Guid.NewGuid()}/observations");
+            var invalidFoodIdResponse =
+                await client.GetAsync("/api/foods/not-a-guid/observations");
+            Assert.Equal(HttpStatusCode.NotFound, unknownFoodResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, invalidFoodIdResponse.StatusCode);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Swagger_documents_food_by_id_route_parameter_and_responses()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -369,6 +455,25 @@ public sealed class FoodObservationApiIntegrationTests
                     .GetProperty("application/json")
                     .GetProperty("schema")
                     .GetRawText());
+
+            var foodObservationsOperation = document.RootElement
+                .GetProperty("paths")
+                .GetProperty("/api/foods/{foodId}/observations")
+                .GetProperty("get");
+            var foodObservationsParameter =
+                Assert.Single(foodObservationsOperation.GetProperty("parameters").EnumerateArray());
+            Assert.Equal("foodId", foodObservationsParameter.GetProperty("name").GetString());
+            Assert.Equal("path", foodObservationsParameter.GetProperty("in").GetString());
+            var foodObservationsResponses = foodObservationsOperation.GetProperty("responses");
+            Assert.True(foodObservationsResponses.TryGetProperty("200", out var foodObservationsSuccess));
+            Assert.Contains(
+                "ObservationResponse",
+                foodObservationsSuccess.GetProperty("content")
+                    .GetProperty("application/json")
+                    .GetProperty("schema")
+                    .GetRawText());
+            Assert.True(foodObservationsResponses.TryGetProperty("404", out _));
+            Assert.True(foodObservationsResponses.TryGetProperty("400", out _));
         }
         finally
         {
@@ -390,6 +495,7 @@ public sealed class FoodObservationApiIntegrationTests
         builder.Services.AddScoped<GetFoodByIdUseCase>();
         builder.Services.AddScoped<CreateObservationUseCase>();
         builder.Services.AddScoped<GetObservationsUseCase>();
+        builder.Services.AddScoped<GetFoodObservationsUseCase>();
         builder.Services.AddScoped<CalculateFoodTriggerPatternUseCase>();
 
         var app = builder.Build();
@@ -400,6 +506,21 @@ public sealed class FoodObservationApiIntegrationTests
         await scope.ServiceProvider.GetRequiredService<TriggeredDbContext>()
             .Database.EnsureCreatedAsync();
         return app;
+    }
+
+    private static async Task<CreatedObservationResponse> CreateObservationAsync(
+        HttpClient client,
+        Guid foodId,
+        DateTimeOffset consumedAt,
+        string reaction)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/observations",
+            new CreateObservationRequest(foodId, consumedAt, reaction));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var observation = await response.Content.ReadFromJsonAsync<CreatedObservationResponse>();
+        Assert.NotNull(observation);
+        return observation;
     }
 
     private static async Task<Guid> CreateFoodAsync(
