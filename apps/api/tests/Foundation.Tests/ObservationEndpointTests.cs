@@ -21,6 +21,7 @@ public sealed class ObservationEndpointTests
         builder.Services.AddScoped<CreateObservationUseCase>();
         builder.Services.AddScoped<GetObservationsUseCase>();
         builder.Services.AddScoped<UpdateObservationUseCase>();
+        builder.Services.AddScoped<DeleteObservationUseCase>();
         using var app = builder.Build();
 
         app.MapObservationEndpoints();
@@ -41,6 +42,7 @@ public sealed class ObservationEndpointTests
         builder.Services.AddScoped<GetObservationsUseCase>();
         builder.Services.AddScoped<CreateObservationUseCase>();
         builder.Services.AddScoped<UpdateObservationUseCase>();
+        builder.Services.AddScoped<DeleteObservationUseCase>();
         using var app = builder.Build();
 
         app.MapObservationEndpoints();
@@ -64,6 +66,7 @@ public sealed class ObservationEndpointTests
         builder.Services.AddScoped<CreateObservationUseCase>();
         builder.Services.AddScoped<GetObservationsUseCase>();
         builder.Services.AddScoped<UpdateObservationUseCase>();
+        builder.Services.AddScoped<DeleteObservationUseCase>();
         using var app = builder.Build();
 
         app.MapObservationEndpoints();
