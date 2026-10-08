@@ -99,5 +99,8 @@ public sealed class UpdateObservationUseCaseTests
             CancellationToken = cancellationToken;
             return Task.CompletedTask;
         }
+
+        public Task DeleteAsync(Observation observation, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }
