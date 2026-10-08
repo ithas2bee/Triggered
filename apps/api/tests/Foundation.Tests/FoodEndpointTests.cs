@@ -20,6 +20,7 @@ public sealed class FoodEndpointTests
         builder.Services.AddScoped<CreateFoodUseCase>();
         builder.Services.AddScoped<GetFoodsUseCase>();
         builder.Services.AddScoped<GetFoodByIdUseCase>();
+        builder.Services.AddScoped<GetFoodObservationsUseCase>();
         builder.Services.AddScoped<CalculateFoodTriggerPatternUseCase>();
         using var app = builder.Build();
 
