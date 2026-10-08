@@ -20,6 +20,7 @@ public sealed class ObservationEndpointTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddScoped<CreateObservationUseCase>();
         builder.Services.AddScoped<GetObservationsUseCase>();
+        builder.Services.AddScoped<UpdateObservationUseCase>();
         using var app = builder.Build();
 
         app.MapObservationEndpoints();
@@ -39,6 +40,7 @@ public sealed class ObservationEndpointTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddScoped<GetObservationsUseCase>();
         builder.Services.AddScoped<CreateObservationUseCase>();
+        builder.Services.AddScoped<UpdateObservationUseCase>();
         using var app = builder.Build();
 
         app.MapObservationEndpoints();
@@ -61,6 +63,7 @@ public sealed class ObservationEndpointTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddScoped<CreateObservationUseCase>();
         builder.Services.AddScoped<GetObservationsUseCase>();
+        builder.Services.AddScoped<UpdateObservationUseCase>();
         using var app = builder.Build();
 
         app.MapObservationEndpoints();
@@ -256,6 +259,9 @@ public sealed class ObservationEndpointTests
 
         public List<Observation> Observations { get; } = [];
 
+        public Task<Observation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(observations.SingleOrDefault(observation => observation.Id == id));
+
         public Task<IReadOnlyList<Observation>> GetAllAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(observations);
 
@@ -270,5 +276,8 @@ public sealed class ObservationEndpointTests
             Observations.Add(observation);
             return Task.CompletedTask;
         }
+
+        public Task UpdateAsync(Observation observation, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

@@ -31,6 +31,9 @@ public sealed class GetFoodObservationsUseCaseTests
     private sealed class FakeObservationRepository(IReadOnlyList<Observation> observations)
         : IObservationRepository
     {
+        public Task<Observation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(observations.SingleOrDefault(observation => observation.Id == id));
+
         public Guid FoodId { get; private set; }
         public CancellationToken CancellationToken { get; private set; }
 
@@ -47,6 +50,9 @@ public sealed class GetFoodObservationsUseCaseTests
         }
 
         public Task AddAsync(Observation observation, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task UpdateAsync(Observation observation, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
 }

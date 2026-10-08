@@ -9,6 +9,7 @@ builder.Services.AddScoped<CreateFoodUseCase>();
 builder.Services.AddScoped<GetFoodsUseCase>();
 builder.Services.AddScoped<GetFoodByIdUseCase>();
 builder.Services.AddScoped<GetObservationsUseCase>();
+builder.Services.AddScoped<UpdateObservationUseCase>();
 builder.Services.AddScoped<GetFoodObservationsUseCase>();
 builder.Services.AddScoped<CalculateFoodTriggerPatternUseCase>();
 builder.Services.AddEndpointsApiExplorer();

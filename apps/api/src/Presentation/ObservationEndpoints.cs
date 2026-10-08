@@ -7,6 +7,10 @@ public sealed record CreateObservationRequest(
     DateTimeOffset ConsumedAt,
     string? Reaction);
 
+public sealed record UpdateObservationRequest(
+    DateTimeOffset ConsumedAt,
+    string? Reaction);
+
 public sealed record CreatedObservationResponse(
     Guid Id,
     Guid FoodId,
@@ -32,6 +36,13 @@ public static class ObservationEndpoints
             .Produces<CreatedObservationResponse>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status404NotFound)
             .ProducesValidationProblem();
+
+        endpoints.MapPut("/api/observations/{observationId:guid}", UpdateObservationAsync)
+            .Accepts<UpdateObservationRequest>("application/json")
+            .Produces<ObservationResponse>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem();
+
         return endpoints;
     }
 
@@ -101,6 +112,64 @@ public static class ObservationEndpoints
                 observation.Reaction);
 
             return Results.Created((string?)null, response);
+        }
+        catch (ArgumentException exception)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                [exception.ParamName ?? "observation"] = [exception.Message]
+            });
+        }
+    }
+
+    public static async Task<IResult> UpdateObservationAsync(
+        Guid observationId,
+        UpdateObservationRequest? request,
+        UpdateObservationUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["request"] = ["A request body is required."]
+            });
+        }
+
+        var errors = new Dictionary<string, string[]>();
+        if (request.ConsumedAt == default)
+        {
+            errors[nameof(request.ConsumedAt)] = ["Consumption time is required."];
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Reaction))
+        {
+            errors[nameof(request.Reaction)] = ["Reaction is required."];
+        }
+
+        if (errors.Count > 0)
+        {
+            return Results.ValidationProblem(errors);
+        }
+
+        try
+        {
+            var observation = await useCase.ExecuteAsync(
+                observationId,
+                request.ConsumedAt,
+                request.Reaction,
+                cancellationToken);
+
+            if (observation is null)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Ok(new ObservationResponse(
+                observation.Id,
+                observation.FoodId,
+                observation.ConsumedAt,
+                observation.Reaction));
         }
         catch (ArgumentException exception)
         {

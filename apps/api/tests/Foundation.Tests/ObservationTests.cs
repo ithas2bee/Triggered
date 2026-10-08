@@ -42,4 +42,50 @@ public sealed class ObservationTests
         Assert.Throws<ArgumentException>(() =>
             new Observation(new Food("Ketchup"), DateTimeOffset.UtcNow, reaction));
     }
+
+    [Fact]
+    public void Update_changes_consumption_time_and_reaction_without_changing_identity_or_food()
+    {
+        var food = new Food("Ketchup");
+        var originalConsumedAt = new DateTimeOffset(2026, 9, 29, 12, 30, 0, TimeSpan.Zero);
+        var observation = new Observation(food, originalConsumedAt, "Heartburn");
+        var updatedConsumedAt = originalConsumedAt.AddHours(1);
+
+        observation.Update(updatedConsumedAt, "No reaction");
+
+        Assert.Equal(food.Id, observation.FoodId);
+        Assert.Same(food, observation.Food);
+        Assert.Equal(updatedConsumedAt, observation.ConsumedAt);
+        Assert.Equal("No reaction", observation.Reaction);
+    }
+
+    [Theory]
+    [InlineData(true, "No reaction")]
+    [InlineData(true, " ")]
+    public void Update_rejects_invalid_data_without_changing_observation(
+        bool missingConsumedAt,
+        string reaction)
+    {
+        var originalConsumedAt = new DateTimeOffset(2026, 9, 29, 12, 30, 0, TimeSpan.Zero);
+        var observation = new Observation(new Food("Ketchup"), originalConsumedAt, "Heartburn");
+
+        Assert.Throws<ArgumentException>(() =>
+            observation.Update(missingConsumedAt ? default : originalConsumedAt.AddHours(1), reaction));
+
+        Assert.Equal(originalConsumedAt, observation.ConsumedAt);
+        Assert.Equal("Heartburn", observation.Reaction);
+    }
+
+    [Fact]
+    public void Update_rejects_missing_reaction()
+    {
+        var originalConsumedAt = new DateTimeOffset(2026, 9, 29, 12, 30, 0, TimeSpan.Zero);
+        var observation = new Observation(new Food("Ketchup"), originalConsumedAt, "Heartburn");
+
+        Assert.Throws<ArgumentException>(() =>
+            observation.Update(originalConsumedAt.AddHours(1), null));
+
+        Assert.Equal(originalConsumedAt, observation.ConsumedAt);
+        Assert.Equal("Heartburn", observation.Reaction);
+    }
 }

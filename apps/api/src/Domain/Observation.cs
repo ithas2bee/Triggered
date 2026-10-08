@@ -10,19 +10,19 @@ public sealed class Observation
     {
         ArgumentNullException.ThrowIfNull(food);
 
-        if (consumedAt == default)
-        {
-            throw new ArgumentException("Consumption time is required.", nameof(consumedAt));
-        }
-
-        if (string.IsNullOrWhiteSpace(reaction))
-        {
-            throw new ArgumentException("Reaction is required.", nameof(reaction));
-        }
+        reaction = Validate(consumedAt, reaction);
 
         Id = Guid.NewGuid();
         FoodId = food.Id;
         Food = food;
+        ConsumedAt = consumedAt;
+        Reaction = reaction;
+    }
+
+    public void Update(DateTimeOffset consumedAt, string? reaction)
+    {
+        reaction = Validate(consumedAt, reaction);
+
         ConsumedAt = consumedAt;
         Reaction = reaction;
     }
@@ -36,4 +36,19 @@ public sealed class Observation
     public DateTimeOffset ConsumedAt { get; private set; }
 
     public string Reaction { get; private set; } = null!;
+
+    private static string Validate(DateTimeOffset consumedAt, string? reaction)
+    {
+        if (consumedAt == default)
+        {
+            throw new ArgumentException("Consumption time is required.", nameof(consumedAt));
+        }
+
+        if (string.IsNullOrWhiteSpace(reaction))
+        {
+            throw new ArgumentException("Reaction is required.", nameof(reaction));
+        }
+
+        return reaction;
+    }
 }
