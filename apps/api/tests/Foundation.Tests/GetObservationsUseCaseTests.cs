@@ -40,6 +40,9 @@ public sealed class GetObservationsUseCaseTests
     {
         public CancellationToken CancellationToken { get; private set; }
 
+        public Task<Observation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(observations.SingleOrDefault(observation => observation.Id == id));
+
         public Task<IReadOnlyList<Observation>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             CancellationToken = cancellationToken;
@@ -56,6 +59,9 @@ public sealed class GetObservationsUseCaseTests
         }
 
         public Task AddAsync(Observation observation, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task UpdateAsync(Observation observation, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
 }

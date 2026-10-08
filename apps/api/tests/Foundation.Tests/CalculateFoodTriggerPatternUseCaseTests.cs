@@ -34,6 +34,9 @@ public sealed class CalculateFoodTriggerPatternUseCaseTests
 
         public CancellationToken CancellationToken { get; private set; }
 
+        public Task<Observation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(observations.SingleOrDefault(observation => observation.Id == id));
+
         public Task<IReadOnlyList<Observation>> GetAllAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(observations);
 
@@ -48,6 +51,9 @@ public sealed class CalculateFoodTriggerPatternUseCaseTests
         }
 
         public Task AddAsync(Observation observation, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task UpdateAsync(Observation observation, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
 }

@@ -6,6 +6,13 @@ namespace Triggered.Infrastructure.Persistence.Repositories;
 
 public sealed class ObservationRepository(TriggeredDbContext context) : IObservationRepository
 {
+    public Task<Observation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return context.Observations.SingleOrDefaultAsync(
+            observation => observation.Id == id,
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Observation>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
@@ -26,6 +33,12 @@ public sealed class ObservationRepository(TriggeredDbContext context) : IObserva
     public async Task AddAsync(Observation observation, CancellationToken cancellationToken = default)
     {
         await context.Observations.AddAsync(observation, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(Observation observation, CancellationToken cancellationToken = default)
+    {
+        context.Entry(observation).State = EntityState.Modified;
         await context.SaveChangesAsync(cancellationToken);
     }
 }
