@@ -279,5 +279,8 @@ public sealed class ObservationEndpointTests
 
         public Task UpdateAsync(Observation observation, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task DeleteAsync(Observation observation, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }
