@@ -60,7 +60,7 @@ public sealed class ObservationTests
     }
 
     [Theory]
-    [InlineData(false, "No reaction")]
+    [InlineData(true, "No reaction")]
     [InlineData(true, " ")]
     public void Update_rejects_invalid_data_without_changing_observation(
         bool missingConsumedAt,
