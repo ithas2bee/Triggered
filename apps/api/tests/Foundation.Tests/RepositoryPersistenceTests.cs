@@ -143,26 +143,35 @@ public sealed class RepositoryPersistenceTests
             .Options;
         var requestedFood = new Food("Ketchup");
         var otherFood = new Food("Mustard");
-        var requestedObservation = new Observation(
+        var earlierRequestedObservation = new Observation(
             requestedFood,
             new DateTimeOffset(2026, 9, 29, 12, 0, 0, TimeSpan.Zero),
             "Heartburn");
+        var laterRequestedObservation = new Observation(
+            requestedFood,
+            new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero),
+            "Bloating");
         var otherObservation = new Observation(
             otherFood,
-            new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
             "Bloating");
 
         await using (var seedContext = new TriggeredDbContext(options))
         {
             await seedContext.Database.EnsureCreatedAsync();
             await seedContext.Foods.AddRangeAsync(requestedFood, otherFood);
-            await seedContext.Observations.AddRangeAsync(requestedObservation, otherObservation);
+            await seedContext.Observations.AddRangeAsync(
+                earlierRequestedObservation,
+                laterRequestedObservation,
+                otherObservation);
             await seedContext.SaveChangesAsync();
         }
 
         await using var context = new TriggeredDbContext(options);
         var result = await new ObservationRepository(context).GetByFoodIdAsync(requestedFood.Id);
 
-        Assert.Equal([requestedObservation.Id], result.Select(observation => observation.Id));
+        Assert.Equal(
+            [laterRequestedObservation.Id, earlierRequestedObservation.Id],
+            result.Select(observation => observation.Id));
     }
 }

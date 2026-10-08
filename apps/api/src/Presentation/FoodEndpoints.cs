@@ -29,6 +29,11 @@ public static class FoodEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .ProducesValidationProblem();
 
+        endpoints.MapGet("/api/foods/{foodId}/observations", GetFoodObservationsAsync)
+            .Produces<ObservationResponse[]>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesValidationProblem();
+
         endpoints.MapPost("/api/foods", CreateFoodAsync)
             .Accepts<CreateFoodRequest>(false, "application/json")
             .Produces<CreatedFoodResponse>(StatusCodes.Status201Created)
@@ -81,6 +86,26 @@ public static class FoodEndpoints
         };
 
         return Results.Ok(new FoodTriggerPatternResponse(foodId, patternName));
+    }
+
+    public static async Task<IResult> GetFoodObservationsAsync(
+        Guid foodId,
+        GetFoodByIdUseCase getFoodByIdUseCase,
+        GetFoodObservationsUseCase getFoodObservationsUseCase,
+        CancellationToken cancellationToken)
+    {
+        var food = await getFoodByIdUseCase.ExecuteAsync(foodId, cancellationToken);
+        if (food is null)
+        {
+            return Results.NotFound();
+        }
+
+        var observations = await getFoodObservationsUseCase.ExecuteAsync(foodId, cancellationToken);
+        return Results.Ok(observations.Select(observation => new ObservationResponse(
+            observation.Id,
+            observation.FoodId,
+            observation.ConsumedAt,
+            observation.Reaction)).ToArray());
     }
 
     public static async Task<IResult> CreateFoodAsync(
