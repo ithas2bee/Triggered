@@ -203,6 +203,13 @@ public sealed class FoodObservationApiIntegrationTests
                 new UpdateObservationRequest(consumedAt, " "));
             Assert.Equal(HttpStatusCode.BadRequest, missingConsumedAtResponse.StatusCode);
             Assert.Equal(HttpStatusCode.BadRequest, missingReactionResponse.StatusCode);
+            Assert.Equal("application/problem+json", missingReactionResponse.Content.Headers.ContentType?.MediaType);
+            using var validationProblem =
+                JsonDocument.Parse(await missingReactionResponse.Content.ReadAsStringAsync());
+            Assert.Equal(400, validationProblem.RootElement.GetProperty("status").GetInt32());
+            Assert.Equal(
+                "Reaction is required.",
+                validationProblem.RootElement.GetProperty("errors").GetProperty("Reaction")[0].GetString());
 
             await using var verificationScope = app.Services.CreateAsyncScope();
             await using var verificationContext =
@@ -576,6 +583,29 @@ public sealed class FoodObservationApiIntegrationTests
             var response = await client.GetAsync("/swagger/v1/swagger.json");
             response.EnsureSuccessStatusCode();
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var paths = document.RootElement.GetProperty("paths");
+            var foodCollection = paths.GetProperty("/api/foods");
+            Assert.True(foodCollection.GetProperty("get").GetProperty("responses").TryGetProperty("200", out _));
+            var createFoodOperation = foodCollection.GetProperty("post");
+            Assert.True(createFoodOperation.GetProperty("responses").TryGetProperty("201", out _));
+            Assert.True(createFoodOperation.GetProperty("responses").TryGetProperty("400", out _));
+            Assert.True(createFoodOperation.GetProperty("responses").GetProperty("400")
+                .GetProperty("content").TryGetProperty("application/problem+json", out _));
+            Assert.True(createFoodOperation.GetProperty("requestBody").GetProperty("required").GetBoolean());
+            var createFoodSchemaName = createFoodOperation.GetProperty("requestBody")
+                .GetProperty("content")
+                .GetProperty("application/json")
+                .GetProperty("schema")
+                .GetProperty("$ref")
+                .GetString()!
+                .Split('/')
+                .Last();
+            var createFoodSchema = document.RootElement.GetProperty("components")
+                .GetProperty("schemas")
+                .GetProperty(createFoodSchemaName);
+            Assert.Contains("name", createFoodSchema.GetProperty("required")
+                .EnumerateArray().Select(property => property.GetString()));
+
             var operation = document.RootElement
                 .GetProperty("paths")
                 .GetProperty("/api/foods/{id}")
@@ -663,6 +693,7 @@ public sealed class FoodObservationApiIntegrationTests
             var updateParameter = Assert.Single(updateOperation.GetProperty("parameters").EnumerateArray());
             Assert.Equal("observationId", updateParameter.GetProperty("name").GetString());
             Assert.True(updateOperation.TryGetProperty("requestBody", out var requestBody));
+            Assert.True(requestBody.GetProperty("required").GetBoolean());
             var requestSchema = requestBody.GetProperty("content")
                 .GetProperty("application/json")
                 .GetProperty("schema");
@@ -676,6 +707,10 @@ public sealed class FoodObservationApiIntegrationTests
                 ["consumedAt", "reaction"],
                 updateRequestSchema.GetProperty("properties").EnumerateObject()
                     .Select(property => property.Name).Order().ToArray());
+            Assert.Equal(
+                ["consumedAt", "reaction"],
+                updateRequestSchema.GetProperty("required").EnumerateArray()
+                    .Select(property => property.GetString()).Order().ToArray());
             var updateResponses = updateOperation.GetProperty("responses");
             Assert.True(updateResponses.TryGetProperty("200", out var updateSuccess));
             Assert.Contains(
@@ -686,6 +721,35 @@ public sealed class FoodObservationApiIntegrationTests
                     .GetRawText());
             Assert.True(updateResponses.TryGetProperty("400", out _));
             Assert.True(updateResponses.TryGetProperty("404", out _));
+
+            var createObservationOperation = paths.GetProperty("/api/observations").GetProperty("post");
+            Assert.True(createObservationOperation.GetProperty("responses").TryGetProperty("201", out _));
+            Assert.True(createObservationOperation.GetProperty("responses").TryGetProperty("400", out _));
+            Assert.True(createObservationOperation.GetProperty("responses").TryGetProperty("404", out _));
+            Assert.True(createObservationOperation.GetProperty("responses").GetProperty("400")
+                .GetProperty("content").TryGetProperty("application/problem+json", out _));
+            var createObservationRequestBody = createObservationOperation.GetProperty("requestBody");
+            Assert.True(
+                createObservationRequestBody.TryGetProperty("required", out var requestBodyRequired),
+                createObservationRequestBody.GetRawText());
+            Assert.True(requestBodyRequired.GetBoolean());
+            var createObservationSchemaName = createObservationRequestBody
+                .GetProperty("content")
+                .GetProperty("application/json")
+                .GetProperty("schema")
+                .GetProperty("$ref")
+                .GetString()!
+                .Split('/')
+                .Last();
+            var createObservationSchema = document.RootElement.GetProperty("components")
+                .GetProperty("schemas")
+                .GetProperty(createObservationSchemaName);
+            Assert.Equal(
+                ["consumedAt", "foodId", "reaction"],
+                createObservationSchema.GetProperty("required").EnumerateArray()
+                    .Select(property => property.GetString()).Order().ToArray());
+            Assert.True(paths.GetProperty("/api/observations").GetProperty("get")
+                .GetProperty("responses").TryGetProperty("200", out _));
         }
         finally
         {
@@ -699,7 +763,8 @@ public sealed class FoodObservationApiIntegrationTests
         builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
         builder.Services.AddDbContext<TriggeredDbContext>(options => options.UseSqlite(connection));
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+        builder.Services.AddSwaggerGen(options =>
+            options.OperationFilter<ObservationRequestBodyRequiredOperationFilter>());
         builder.Services.AddScoped<IFoodRepository, FoodRepository>();
         builder.Services.AddScoped<IObservationRepository, ObservationRepository>();
         builder.Services.AddScoped<CreateFoodUseCase>();

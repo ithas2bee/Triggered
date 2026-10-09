@@ -14,7 +14,8 @@ builder.Services.AddScoped<DeleteObservationUseCase>();
 builder.Services.AddScoped<GetFoodObservationsUseCase>();
 builder.Services.AddScoped<CalculateFoodTriggerPatternUseCase>();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+    options.OperationFilter<ObservationRequestBodyRequiredOperationFilter>());
 
 var app = builder.Build();
 
