@@ -585,9 +585,17 @@ public sealed class FoodObservationApiIntegrationTests
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             var paths = document.RootElement.GetProperty("paths");
             var foodCollection = paths.GetProperty("/api/foods");
-            Assert.True(foodCollection.GetProperty("get").GetProperty("responses").TryGetProperty("200", out _));
+            var listFoodsSuccess = foodCollection.GetProperty("get").GetProperty("responses").GetProperty("200");
+            Assert.Contains(
+                "FoodResponse",
+                listFoodsSuccess.GetProperty("content").GetProperty("application/json")
+                    .GetProperty("schema").GetRawText());
             var createFoodOperation = foodCollection.GetProperty("post");
             Assert.True(createFoodOperation.GetProperty("responses").TryGetProperty("201", out _));
+            Assert.Contains(
+                "CreatedFoodResponse",
+                createFoodOperation.GetProperty("responses").GetProperty("201")
+                    .GetProperty("content").GetProperty("application/json").GetProperty("schema").GetRawText());
             Assert.True(createFoodOperation.GetProperty("responses").TryGetProperty("400", out _));
             Assert.True(createFoodOperation.GetProperty("responses").GetProperty("400")
                 .GetProperty("content").TryGetProperty("application/problem+json", out _));
@@ -724,6 +732,10 @@ public sealed class FoodObservationApiIntegrationTests
 
             var createObservationOperation = paths.GetProperty("/api/observations").GetProperty("post");
             Assert.True(createObservationOperation.GetProperty("responses").TryGetProperty("201", out _));
+            Assert.Contains(
+                "CreatedObservationResponse",
+                createObservationOperation.GetProperty("responses").GetProperty("201")
+                    .GetProperty("content").GetProperty("application/json").GetProperty("schema").GetRawText());
             Assert.True(createObservationOperation.GetProperty("responses").TryGetProperty("400", out _));
             Assert.True(createObservationOperation.GetProperty("responses").TryGetProperty("404", out _));
             Assert.True(createObservationOperation.GetProperty("responses").GetProperty("400")

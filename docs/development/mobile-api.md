@@ -23,12 +23,10 @@ returning the timestamp.
 | `PUT` | `/api/observations/{observationId}` | Replace an observation's time and reaction | `200` | `400`, `404` |
 | `DELETE` | `/api/observations/{observationId}` | Delete an observation | `204` | `404` |
 
-The issue lists eight endpoints, but its acceptance criteria contain nine
-distinct method/path operations; all nine are documented here. The food
-collection routes use `{id}` or `{foodId}` GUID parameters without a route
-constraint: an invalid GUID returns `400`, while an unknown valid GUID returns
-`404`. Observation update and delete routes have a GUID route constraint, so
-an invalid GUID does not match the route and returns `404`.
+The food collection routes use `{id}` or `{foodId}` GUID parameters without a
+route constraint: an invalid GUID returns `400`, while an unknown valid GUID
+returns `404`. Observation update and delete routes have a GUID route constraint,
+so an invalid GUID does not match the route and returns `404`.
 
 ## Foods
 
