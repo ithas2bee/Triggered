@@ -15,4 +15,6 @@ public interface IObservationRepository
     Task AddAsync(Observation observation, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(Observation observation, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(Observation observation, CancellationToken cancellationToken = default);
 }

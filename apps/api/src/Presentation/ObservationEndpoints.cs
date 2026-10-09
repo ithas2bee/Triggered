@@ -43,6 +43,10 @@ public static class ObservationEndpoints
             .Produces(StatusCodes.Status404NotFound)
             .ProducesValidationProblem();
 
+        endpoints.MapDelete("/api/observations/{observationId:guid}", DeleteObservationAsync)
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 
@@ -178,5 +182,14 @@ public static class ObservationEndpoints
                 [exception.ParamName ?? "observation"] = [exception.Message]
             });
         }
+    }
+
+    public static async Task<IResult> DeleteObservationAsync(
+        Guid observationId,
+        DeleteObservationUseCase useCase,
+        CancellationToken cancellationToken)
+    {
+        var deleted = await useCase.ExecuteAsync(observationId, cancellationToken);
+        return deleted ? Results.NoContent() : Results.NotFound();
     }
 }

@@ -148,6 +148,50 @@ public sealed class RepositoryPersistenceTests
     }
 
     [Fact]
+    public async Task ObservationRepository_deletes_only_requested_observation_and_preserves_food()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<TriggeredDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var food = new Food("Oatmeal");
+        var deletedObservation = new Observation(
+            food,
+            new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero),
+            "Felt bloated");
+        var remainingObservation = new Observation(
+            food,
+            new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
+            "Heartburn");
+
+        await using (var seedContext = new TriggeredDbContext(options))
+        {
+            await seedContext.Database.EnsureCreatedAsync();
+            await seedContext.Foods.AddAsync(food);
+            await seedContext.Observations.AddRangeAsync(deletedObservation, remainingObservation);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using (var context = new TriggeredDbContext(options))
+        {
+            var repository = new ObservationRepository(context);
+            var existingObservation = await repository.GetByIdAsync(deletedObservation.Id);
+
+            Assert.NotNull(existingObservation);
+            await repository.DeleteAsync(existingObservation);
+        }
+
+        await using var verificationContext = new TriggeredDbContext(options);
+        Assert.True(await verificationContext.Foods.AnyAsync(item => item.Id == food.Id));
+        Assert.False(await verificationContext.Observations
+            .AnyAsync(item => item.Id == deletedObservation.Id));
+        var persistedObservation = await verificationContext.Observations
+            .SingleAsync(item => item.Id == remainingObservation.Id);
+        Assert.Equal(food.Id, persistedObservation.FoodId);
+    }
+
+    [Fact]
     public async Task ObservationRepository_gets_observations_ordered_by_consumed_at_descending()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

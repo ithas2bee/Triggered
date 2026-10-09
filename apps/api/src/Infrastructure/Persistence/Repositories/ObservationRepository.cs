@@ -41,4 +41,10 @@ public sealed class ObservationRepository(TriggeredDbContext context) : IObserva
         context.Entry(observation).State = EntityState.Modified;
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task DeleteAsync(Observation observation, CancellationToken cancellationToken = default)
+    {
+        context.Observations.Remove(observation);
+        await context.SaveChangesAsync(cancellationToken);
+    }
 }

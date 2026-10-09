@@ -221,6 +221,77 @@ public sealed class FoodObservationApiIntegrationTests
     }
 
     [Fact]
+    public async Task Delete_observation_removes_it_from_history_and_pattern_without_deleting_food()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+            var foodResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest("Ketchup"));
+            var food = await foodResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+            Assert.Equal(HttpStatusCode.Created, foodResponse.StatusCode);
+            Assert.NotNull(food);
+
+            var consumedAt = new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
+            var deletedObservation = await CreateObservationAsync(client, food.Id, consumedAt, "Reflux");
+            var remainingObservation1 =
+                await CreateObservationAsync(client, food.Id, consumedAt.AddHours(1), "Reflux");
+            var remainingObservation2 =
+                await CreateObservationAsync(client, food.Id, consumedAt.AddHours(2), "Reflux");
+            var otherFood = await CreateFoodAsync(client, "Mustard", "Heartburn");
+
+            var deleteResponse = await client.DeleteAsync($"/api/observations/{deletedObservation.Id}");
+            var secondDeleteResponse = await client.DeleteAsync($"/api/observations/{deletedObservation.Id}");
+            var unknownDeleteResponse = await client.DeleteAsync($"/api/observations/{Guid.NewGuid()}");
+
+            Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, secondDeleteResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, unknownDeleteResponse.StatusCode);
+
+            var historyResponse = await client.GetAsync($"/api/foods/{food.Id}/observations");
+            var history = await historyResponse.Content.ReadFromJsonAsync<ObservationResponse[]>();
+            Assert.Equal(HttpStatusCode.OK, historyResponse.StatusCode);
+            Assert.NotNull(history);
+            Assert.Equal(
+                [remainingObservation2.Id, remainingObservation1.Id],
+                history.Select(observation => observation.Id));
+
+            var patternResponse = await client.GetAsync($"/api/foods/{food.Id}/trigger-pattern");
+            var pattern = await patternResponse.Content.ReadFromJsonAsync<FoodTriggerPatternResponse>();
+            Assert.Equal(HttpStatusCode.OK, patternResponse.StatusCode);
+            Assert.NotNull(pattern);
+            Assert.Equal("Insufficient Data", pattern.Pattern);
+
+            await using var verificationScope = app.Services.CreateAsyncScope();
+            await using var verificationContext =
+                verificationScope.ServiceProvider.GetRequiredService<TriggeredDbContext>();
+            Assert.True(await verificationContext.Foods.AnyAsync(item => item.Id == food.Id));
+            Assert.True(await verificationContext.Foods.AnyAsync(item => item.Id == otherFood));
+            Assert.False(await verificationContext.Observations
+                .AnyAsync(item => item.Id == deletedObservation.Id));
+            Assert.Equal(2, await verificationContext.Observations
+                .CountAsync(item => item.FoodId == food.Id));
+            Assert.Equal(1, await verificationContext.Observations
+                .CountAsync(item => item.FoodId == otherFood));
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Get_foods_returns_empty_collection_when_database_has_no_foods()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -574,6 +645,17 @@ public sealed class FoodObservationApiIntegrationTests
             Assert.True(foodObservationsResponses.TryGetProperty("404", out _));
             Assert.True(foodObservationsResponses.TryGetProperty("400", out _));
 
+            var deleteOperation = document.RootElement
+                .GetProperty("paths")
+                .GetProperty("/api/observations/{observationId}")
+                .GetProperty("delete");
+            var deleteParameter = Assert.Single(deleteOperation.GetProperty("parameters").EnumerateArray());
+            Assert.Equal("observationId", deleteParameter.GetProperty("name").GetString());
+            Assert.Equal("path", deleteParameter.GetProperty("in").GetString());
+            var deleteResponses = deleteOperation.GetProperty("responses");
+            Assert.True(deleteResponses.TryGetProperty("204", out _));
+            Assert.True(deleteResponses.TryGetProperty("404", out _));
+
             var updateOperation = document.RootElement
                 .GetProperty("paths")
                 .GetProperty("/api/observations/{observationId}")
@@ -625,6 +707,7 @@ public sealed class FoodObservationApiIntegrationTests
         builder.Services.AddScoped<GetFoodByIdUseCase>();
         builder.Services.AddScoped<CreateObservationUseCase>();
         builder.Services.AddScoped<UpdateObservationUseCase>();
+        builder.Services.AddScoped<DeleteObservationUseCase>();
         builder.Services.AddScoped<GetObservationsUseCase>();
         builder.Services.AddScoped<GetFoodObservationsUseCase>();
         builder.Services.AddScoped<CalculateFoodTriggerPatternUseCase>();
