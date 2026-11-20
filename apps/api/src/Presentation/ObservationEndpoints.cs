@@ -1,15 +1,16 @@
+using System.ComponentModel.DataAnnotations;
 using Triggered.Application.UseCases;
 
 namespace Triggered.Presentation;
 
 public sealed record CreateObservationRequest(
-    Guid FoodId,
-    DateTimeOffset ConsumedAt,
-    string? Reaction);
+    [property: Required] Guid FoodId,
+    [property: Required] DateTimeOffset ConsumedAt,
+    [property: Required] string? Reaction);
 
 public sealed record UpdateObservationRequest(
-    DateTimeOffset ConsumedAt,
-    string? Reaction);
+    [property: Required] DateTimeOffset ConsumedAt,
+    [property: Required] string? Reaction);
 
 public sealed record CreatedObservationResponse(
     Guid Id,
@@ -32,7 +33,7 @@ public static class ObservationEndpoints
             .Produces<ObservationResponse[]>(StatusCodes.Status200OK);
 
         endpoints.MapPost("/api/observations", CreateObservationAsync)
-            .Accepts<CreateObservationRequest>("application/json")
+            .Accepts<CreateObservationRequest>(false, "application/json")
             .Produces<CreatedObservationResponse>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status404NotFound)
             .ProducesValidationProblem();
