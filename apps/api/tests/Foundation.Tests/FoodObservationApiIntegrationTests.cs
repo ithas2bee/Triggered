@@ -299,6 +299,203 @@ public sealed class FoodObservationApiIntegrationTests
     }
 
     [Fact]
+    public async Task Food_and_observation_workflow_preserves_contract_and_food_isolation()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var app = await CreateApiAsync(connection);
+
+        await app.StartAsync();
+        try
+        {
+            var addresses = app.Services.GetRequiredService<IServer>()
+                .Features.Get<IServerAddressesFeature>()!;
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(addresses.Addresses.Single())
+            };
+
+            var invalidFoodResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest(" "));
+            Assert.Equal(HttpStatusCode.BadRequest, invalidFoodResponse.StatusCode);
+            Assert.Equal(
+                "application/problem+json",
+                invalidFoodResponse.Content.Headers.ContentType?.MediaType);
+            using (var invalidFoodProblem =
+                   JsonDocument.Parse(await invalidFoodResponse.Content.ReadAsStringAsync()))
+            {
+                Assert.True(invalidFoodProblem.RootElement.GetProperty("errors")
+                    .TryGetProperty("name", out _));
+            }
+
+            var foodResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest("Ketchup"));
+            var food = await foodResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+            Assert.Equal(HttpStatusCode.Created, foodResponse.StatusCode);
+            Assert.NotNull(food);
+            Assert.NotEqual(Guid.Empty, food.Id);
+
+            var otherFoodResponse = await client.PostAsJsonAsync(
+                "/api/foods",
+                new CreateFoodRequest("Mustard"));
+            var otherFood = await otherFoodResponse.Content.ReadFromJsonAsync<CreatedFoodResponse>();
+            Assert.Equal(HttpStatusCode.Created, otherFoodResponse.StatusCode);
+            Assert.NotNull(otherFood);
+
+            var foodsResponse = await client.GetAsync("/api/foods");
+            var foods = await foodsResponse.Content.ReadFromJsonAsync<FoodResponse[]>();
+            Assert.Equal(HttpStatusCode.OK, foodsResponse.StatusCode);
+            Assert.NotNull(foods);
+            Assert.Contains(foods, item => item.Id == food.Id && item.Name == "Ketchup");
+            Assert.Contains(foods, item => item.Id == otherFood.Id && item.Name == "Mustard");
+
+            var foodByIdResponse = await client.GetAsync($"/api/foods/{food.Id}");
+            var foodById = await foodByIdResponse.Content.ReadFromJsonAsync<FoodResponse>();
+            Assert.Equal(HttpStatusCode.OK, foodByIdResponse.StatusCode);
+            Assert.NotNull(foodById);
+            Assert.Equal(food.Id, foodById.Id);
+            Assert.Equal("Ketchup", foodById.Name);
+
+            var consumedAt = new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.FromHours(5.5));
+            var firstObservation = await CreateObservationAsync(client, food.Id, consumedAt, "Reflux");
+            var secondObservation =
+                await CreateObservationAsync(client, food.Id, consumedAt.AddHours(1), "Reflux");
+            var thirdObservation =
+                await CreateObservationAsync(client, food.Id, consumedAt.AddHours(2), "Reflux");
+            var unrelatedObservation =
+                await CreateObservationAsync(client, otherFood.Id, consumedAt, "Bloating");
+
+            var invalidObservationResponse = await client.PostAsJsonAsync(
+                "/api/observations",
+                new CreateObservationRequest(Guid.Empty, default, " "));
+            Assert.Equal(HttpStatusCode.BadRequest, invalidObservationResponse.StatusCode);
+            Assert.Equal(
+                "application/problem+json",
+                invalidObservationResponse.Content.Headers.ContentType?.MediaType);
+            using (var invalidObservationProblem =
+                   JsonDocument.Parse(await invalidObservationResponse.Content.ReadAsStringAsync()))
+            {
+                var errors = invalidObservationProblem.RootElement.GetProperty("errors");
+                Assert.Equal(
+                    ["ConsumedAt", "FoodId", "Reaction"],
+                    errors.EnumerateObject().Select(property => property.Name).Order().ToArray());
+            }
+
+            var historyResponse = await client.GetAsync($"/api/foods/{food.Id}/observations");
+            var history = await historyResponse.Content.ReadFromJsonAsync<ObservationResponse[]>();
+            Assert.Equal(HttpStatusCode.OK, historyResponse.StatusCode);
+            Assert.NotNull(history);
+            Assert.Equal(
+                [thirdObservation.Id, secondObservation.Id, firstObservation.Id],
+                history.Select(item => item.Id));
+            Assert.All(history, item => Assert.Equal(food.Id, item.FoodId));
+
+            var initialPatternResponse = await client.GetAsync($"/api/foods/{food.Id}/trigger-pattern");
+            var initialPattern =
+                await initialPatternResponse.Content.ReadFromJsonAsync<FoodTriggerPatternResponse>();
+            Assert.Equal(HttpStatusCode.OK, initialPatternResponse.StatusCode);
+            Assert.NotNull(initialPattern);
+            Assert.Equal("Strong Trigger Pattern", initialPattern.Pattern);
+
+            var updatedConsumedAt = consumedAt.AddDays(1);
+            var updateResponse = await client.PutAsJsonAsync(
+                $"/api/observations/{firstObservation.Id}",
+                new
+                {
+                    consumedAt = updatedConsumedAt,
+                    reaction = "No reaction",
+                    foodId = otherFood.Id
+                });
+            var updatedObservation = await updateResponse.Content.ReadFromJsonAsync<ObservationResponse>();
+            Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+            Assert.NotNull(updatedObservation);
+            Assert.Equal(firstObservation.Id, updatedObservation.Id);
+            Assert.Equal(food.Id, updatedObservation.FoodId);
+            Assert.Equal(updatedConsumedAt, updatedObservation.ConsumedAt);
+            Assert.Equal("No reaction", updatedObservation.Reaction);
+
+            var updatedHistoryResponse = await client.GetAsync($"/api/foods/{food.Id}/observations");
+            var updatedHistory =
+                await updatedHistoryResponse.Content.ReadFromJsonAsync<ObservationResponse[]>();
+            Assert.Equal(HttpStatusCode.OK, updatedHistoryResponse.StatusCode);
+            Assert.NotNull(updatedHistory);
+            Assert.Equal(
+                [firstObservation.Id, thirdObservation.Id, secondObservation.Id],
+                updatedHistory.Select(item => item.Id));
+            Assert.Equal(updatedConsumedAt, updatedHistory[0].ConsumedAt);
+            Assert.Equal(consumedAt.Offset, updatedHistory[0].ConsumedAt.Offset);
+
+            var updatedPatternResponse = await client.GetAsync($"/api/foods/{food.Id}/trigger-pattern");
+            var updatedPattern =
+                await updatedPatternResponse.Content.ReadFromJsonAsync<FoodTriggerPatternResponse>();
+            Assert.Equal(HttpStatusCode.OK, updatedPatternResponse.StatusCode);
+            Assert.NotNull(updatedPattern);
+            Assert.Equal("Likely Trigger", updatedPattern.Pattern);
+
+            var otherFoodHistoryResponse =
+                await client.GetAsync($"/api/foods/{otherFood.Id}/observations");
+            var otherFoodHistory =
+                await otherFoodHistoryResponse.Content.ReadFromJsonAsync<ObservationResponse[]>();
+            Assert.Equal(HttpStatusCode.OK, otherFoodHistoryResponse.StatusCode);
+            Assert.NotNull(otherFoodHistory);
+            var unchangedObservation = Assert.Single(otherFoodHistory);
+            Assert.Equal(unrelatedObservation.Id, unchangedObservation.Id);
+            Assert.Equal("Bloating", unchangedObservation.Reaction);
+
+            var deleteResponse =
+                await client.DeleteAsync($"/api/observations/{secondObservation.Id}");
+            Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+            Assert.Empty(await deleteResponse.Content.ReadAsByteArrayAsync());
+
+            var deletedHistoryResponse = await client.GetAsync($"/api/foods/{food.Id}/observations");
+            var deletedHistory =
+                await deletedHistoryResponse.Content.ReadFromJsonAsync<ObservationResponse[]>();
+            Assert.Equal(HttpStatusCode.OK, deletedHistoryResponse.StatusCode);
+            Assert.NotNull(deletedHistory);
+            Assert.Equal(
+                [firstObservation.Id, thirdObservation.Id],
+                deletedHistory.Select(item => item.Id));
+            Assert.DoesNotContain(deletedHistory, item => item.Id == secondObservation.Id);
+
+            var deletedPatternResponse = await client.GetAsync($"/api/foods/{food.Id}/trigger-pattern");
+            var deletedPattern =
+                await deletedPatternResponse.Content.ReadFromJsonAsync<FoodTriggerPatternResponse>();
+            Assert.Equal(HttpStatusCode.OK, deletedPatternResponse.StatusCode);
+            Assert.NotNull(deletedPattern);
+            Assert.Equal("Insufficient Data", deletedPattern.Pattern);
+
+            var finalOtherFoodHistoryResponse =
+                await client.GetAsync($"/api/foods/{otherFood.Id}/observations");
+            var finalOtherFoodHistory =
+                await finalOtherFoodHistoryResponse.Content.ReadFromJsonAsync<ObservationResponse[]>();
+            Assert.Equal(HttpStatusCode.OK, finalOtherFoodHistoryResponse.StatusCode);
+            Assert.NotNull(finalOtherFoodHistory);
+            Assert.Equal(unrelatedObservation.Id, Assert.Single(finalOtherFoodHistory).Id);
+
+            await using var verificationScope = app.Services.CreateAsyncScope();
+            await using var verificationContext =
+                verificationScope.ServiceProvider.GetRequiredService<TriggeredDbContext>();
+            Assert.Equal(2, await verificationContext.Foods.CountAsync());
+            Assert.Equal(3, await verificationContext.Observations.CountAsync());
+            Assert.False(await verificationContext.Observations
+                .AnyAsync(item => item.Id == secondObservation.Id));
+            var persistedUpdate = await verificationContext.Observations
+                .SingleAsync(item => item.Id == firstObservation.Id);
+            Assert.Equal(food.Id, persistedUpdate.FoodId);
+            Assert.Equal(updatedConsumedAt, persistedUpdate.ConsumedAt);
+            Assert.Equal("No reaction", persistedUpdate.Reaction);
+            Assert.True(await verificationContext.Observations
+                .AnyAsync(item => item.Id == unrelatedObservation.Id && item.FoodId == otherFood.Id));
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Get_foods_returns_empty_collection_when_database_has_no_foods()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
