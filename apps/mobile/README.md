@@ -46,14 +46,22 @@ $env:EXPO_PUBLIC_API_BASE_URL="http://10.0.2.2:5276"
 npm start
 ```
 
-For a physical device, use the development computer's LAN IP address instead
-of `10.0.2.2` (for example, `http://192.168.1.10:5276`). The phone and
-computer must be on a network that permits the phone to reach that address
-and port; allow the backend through the computer's firewall if needed.
-`localhost` on a device refers to that device, not the development computer.
+The Android emulator can use the regular backend HTTP launch profile on
+`localhost:5276`; its `10.0.2.2` address reaches the host computer. For
+physical-device testing, the backend must listen on the network interfaces
+instead of only `localhost`. Start it from the repository root in a separate
+terminal:
 
-Start the backend from the repository root with
-`dotnet run --project apps/api/src/Presentation --launch-profile http`.
+```sh
+dotnet run --project apps/api/src/Presentation --urls http://0.0.0.0:5276
+```
+
+Set `EXPO_PUBLIC_API_BASE_URL` to the development computer's LAN IP address,
+not `10.0.2.2` (for example, `http://192.168.1.10:5276`). The phone and
+computer must be on a network that permits access, and the computer's firewall
+must allow inbound connections to port `5276`. `localhost` on a device refers
+to that device, not the development computer.
+
 Use the Expo Go app to scan the displayed QR code, or start a connected
 emulator with `npm run android` or `npm run ios`.
 
