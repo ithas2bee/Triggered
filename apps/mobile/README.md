@@ -22,26 +22,40 @@ npm install
 
 Set `EXPO_PUBLIC_API_BASE_URL` to the address where the backend API is
 reachable from the device, including its scheme and port. The local API's
-HTTP development profile listens on port `5276`. For example:
+HTTP development profile listens on port `5276`. Set the variable and run Expo
+from the same terminal:
 
 ```sh
 # iOS simulator
 export EXPO_PUBLIC_API_BASE_URL=http://localhost:5276
-
-# Android emulator (Android Studio's default emulator)
-export EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:5276
-
-# Physical device: replace with the development computer's LAN IP address
-export EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:5276
 npm start
 ```
+
+For an Android emulator, `10.0.2.2` routes to the development computer hosting
+the emulator. In Windows Command Prompt:
+
+```bat
+set EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:5276
+npm start
+```
+
+In Windows PowerShell:
+
+```powershell
+$env:EXPO_PUBLIC_API_BASE_URL="http://10.0.2.2:5276"
+npm start
+```
+
+For a physical device, use the development computer's LAN IP address instead
+of `10.0.2.2` (for example, `http://192.168.1.10:5276`). The phone and
+computer must be on a network that permits the phone to reach that address
+and port; allow the backend through the computer's firewall if needed.
+`localhost` on a device refers to that device, not the development computer.
 
 Start the backend from the repository root with
 `dotnet run --project apps/api/src/Presentation --launch-profile http`.
 Use the Expo Go app to scan the displayed QR code, or start a connected
-emulator with `npm run android` or `npm run ios`. The device and backend must
-be able to reach each other on the network; `localhost` on a device refers to
-that device, not the development computer.
+emulator with `npm run android` or `npm run ios`.
 
 Run the complete mobile test suite and TypeScript check from this directory:
 
