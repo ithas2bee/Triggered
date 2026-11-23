@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { NavigationContainer } from '@react-navigation/native';
 
 import type { Food } from '../src/application/foods/Food';
 import type { FoodRepository } from '../src/application/foods/FoodRepository';
@@ -28,6 +29,14 @@ function createRepository(
   return repository;
 }
 
+function renderFoodListScreen(foodRepository: jest.Mocked<FoodRepository>) {
+  return render(
+    <NavigationContainer>
+      <FoodListScreen foodRepository={foodRepository} />
+    </NavigationContainer>,
+  );
+}
+
 describe('FoodListScreen', () => {
   it('shows a loading state while Foods are requested', async () => {
     let resolveFoods!: (foods: Food[]) => void;
@@ -39,9 +48,7 @@ describe('FoodListScreen', () => {
           }),
       ),
     });
-    const screen = await render(
-      <FoodListScreen foodRepository={foodRepository} />,
-    );
+    const screen = await renderFoodListScreen(foodRepository);
 
     expect(screen.getByLabelText('Loading foods')).toBeTruthy();
 
@@ -59,16 +66,12 @@ describe('FoodListScreen', () => {
     const foodRepository = createRepository({
       getFoods: jest.fn().mockResolvedValue(existingFoods),
     });
-    const screen = await render(
-      <FoodListScreen foodRepository={foodRepository} />,
-    );
+    const screen = await renderFoodListScreen(foodRepository);
 
     expect(await screen.findByText('Ketchup')).toBeTruthy();
     expect(screen.getByText('Tomato')).toBeTruthy();
 
-    const emptyScreen = await render(
-      <FoodListScreen foodRepository={createRepository()} />,
-    );
+    const emptyScreen = await renderFoodListScreen(createRepository());
     expect(
       await emptyScreen.findByText('No foods yet. Add a food to get started.'),
     ).toBeTruthy();
@@ -77,9 +80,7 @@ describe('FoodListScreen', () => {
 
   it('creates a Food and updates the list', async () => {
     const foodRepository = createRepository();
-    const screen = await render(
-      <FoodListScreen foodRepository={foodRepository} />,
-    );
+    const screen = await renderFoodListScreen(foodRepository);
 
     await screen.findByText('No foods yet. Add a food to get started.');
     await fireEvent.press(screen.getByRole('button', { name: 'Add a food' }));
@@ -95,9 +96,7 @@ describe('FoodListScreen', () => {
     const foodRepository = createRepository({
       createFood: jest.fn().mockRejectedValue(new Error('Name is required.')),
     });
-    const screen = await render(
-      <FoodListScreen foodRepository={foodRepository} />,
-    );
+    const screen = await renderFoodListScreen(foodRepository);
 
     await screen.findByText('No foods yet. Add a food to get started.');
     await fireEvent.press(screen.getByRole('button', { name: 'Add a food' }));
@@ -120,9 +119,7 @@ describe('FoodListScreen', () => {
         .mockRejectedValueOnce(new Error('Could not connect.'))
         .mockResolvedValueOnce([food]),
     });
-    const screen = await render(
-      <FoodListScreen foodRepository={foodRepository} />,
-    );
+    const screen = await renderFoodListScreen(foodRepository);
 
     expect(await screen.findByText('Could not connect.')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
@@ -141,9 +138,7 @@ describe('FoodListScreen', () => {
           }),
       ),
     });
-    const screen = await render(
-      <FoodListScreen foodRepository={foodRepository} />,
-    );
+    const screen = await renderFoodListScreen(foodRepository);
 
     await screen.findByText('No foods yet. Add a food to get started.');
     await fireEvent.press(screen.getByRole('button', { name: 'Add a food' }));
