@@ -1,8 +1,8 @@
 # Triggered Mobile
 
-The mobile app is a TypeScript, React Native, and Expo application. Its initial
-screen and typed navigation root are in place; the Food and Observation routes
-are navigation placeholders only.
+The mobile app is a TypeScript, React Native, and Expo application. The Food
+list and creation flow use the backend API; Observation routes remain
+placeholders.
 
 ## Prerequisites
 
@@ -13,33 +13,52 @@ are navigation placeholders only.
 
 ## Setup and commands
 
-From this directory, install dependencies and start Expo:
+From this directory, install dependencies, configure the API base URL, and
+start Expo:
 
 ```sh
 npm install
+```
+
+Set `EXPO_PUBLIC_API_BASE_URL` to the address where the backend API is
+reachable from the device, including its scheme and port. The local API's
+HTTP development profile listens on port `5276`. For example:
+
+```sh
+# iOS simulator
+export EXPO_PUBLIC_API_BASE_URL=http://localhost:5276
+
+# Android emulator (Android Studio's default emulator)
+export EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:5276
+
+# Physical device: replace with the development computer's LAN IP address
+export EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:5276
 npm start
 ```
 
+Start the backend from the repository root with
+`dotnet run --project apps/api/src/Presentation --launch-profile http`.
 Use the Expo Go app to scan the displayed QR code, or start a connected
-emulator with `npm run android` or `npm run ios`.
+emulator with `npm run android` or `npm run ios`. The device and backend must
+be able to reach each other on the network; `localhost` on a device refers to
+that device, not the development computer.
 
-Run the app tests and TypeScript check with:
+Run the complete mobile test suite and TypeScript check from this directory:
 
 ```sh
 npm test -- --runInBand
 npm run typecheck
+npx expo-doctor
 ```
 
 ## Project structure
 
 - `index.ts` registers the application with Expo.
 - `src/presentation` contains the root navigator and rendered screens.
-- `src/application` contains typed client navigation contracts. Use cases will
-  live here as they are introduced.
-- `src/infrastructure` is reserved for API communication and other external
-  integrations; no backend client is included in this foundation.
-- `tests` covers startup rendering and the initial navigation behavior.
+- `src/application` contains typed navigation and Food contracts.
+- `src/infrastructure` contains the Food API client and API configuration.
+- `tests` covers startup, navigation, API requests, and Food list/create flows.
 
 Presentation can depend on application contracts, while future infrastructure
-will provide external integrations to application behavior. Product business
-rules remain in the shared backend rather than being duplicated in the app.
+implements the Food repository contract. Product business rules remain in the
+shared backend rather than being duplicated in the app.
