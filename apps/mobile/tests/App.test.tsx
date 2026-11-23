@@ -30,7 +30,12 @@ describe('mobile app', () => {
       createFood: jest.fn(),
     };
     const observationRepository: jest.Mocked<ObservationRepository> = {
-      createObservation: jest.fn(),
+      createObservation: jest.fn().mockResolvedValue({
+        id: 'observation-id',
+        foodId: 'food-guid',
+        consumedAt: '2026-10-09T11:30:00Z',
+        reaction: 'Heartburn',
+      }),
     };
     const screen = await render(
       <NavigationContainer>
@@ -51,5 +56,16 @@ describe('mobile app', () => {
       await screen.findByRole('header', { name: 'Log an observation' }),
     ).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'Ketchup' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Ketchup' }));
+    await fireEvent.changeText(screen.getByLabelText('Reaction'), 'Heartburn');
+    await fireEvent.press(
+      screen.getByRole('button', { name: 'Save observation' }),
+    );
+    expect(
+      await screen.findByRole('header', { name: 'Observation recorded' }),
+    ).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to foods' }));
+    expect(await screen.findByRole('header', { name: 'Foods' })).toBeTruthy();
   });
 });
