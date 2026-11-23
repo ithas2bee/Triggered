@@ -9,15 +9,24 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import type { Food } from '../../application/foods/Food';
 import type { FoodRepository } from '../../application/foods/FoodRepository';
+import type { RootStackParamList } from '../../application/navigation/routes';
 
 type FoodListScreenProps = {
   foodRepository: FoodRepository;
 };
 
+type FoodListNavigation = NativeStackNavigationProp<
+  RootStackParamList,
+  'FoodList'
+>;
+
 export function FoodListScreen({ foodRepository }: FoodListScreenProps) {
+  const navigation = useNavigation<FoodListNavigation>();
   const [foods, setFoods] = useState<Food[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -130,10 +139,17 @@ export function FoodListScreen({ foodRepository }: FoodListScreenProps) {
                 />
               </View>
             ) : (
-              <ActionButton
-                label="Add a food"
-                onPress={() => setIsCreating(true)}
-              />
+              <View>
+                <ActionButton
+                  label="Add a food"
+                  onPress={() => setIsCreating(true)}
+                />
+                <ActionButton
+                  label="Log an observation"
+                  onPress={() => navigation.navigate('ObservationEntry')}
+                  secondary
+                />
+              </View>
             )}
           </>
         )}

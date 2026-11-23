@@ -1,8 +1,9 @@
 # Triggered Mobile
 
 The mobile app is a TypeScript, React Native, and Expo application. The Food
-list and creation flow use the backend API; Observation routes remain
-placeholders.
+list and creation flow use the backend API. Users can log an Observation from
+the Food list by selecting a saved Food, entering the local consumption date
+and time, and recording their reaction.
 
 ## Prerequisites
 
@@ -22,8 +23,9 @@ npm install
 
 Set `EXPO_PUBLIC_API_BASE_URL` to the address where the backend API is
 reachable from the device, including its scheme and port. The local API's
-HTTP development profile listens on port `5276`. Set the variable and run Expo
-from the same terminal:
+HTTP development profile listens on port `5276`. The API must be running and
+reachable to load saved Foods and submit Observations. Set the variable and run
+Expo from the same terminal:
 
 ```sh
 # iOS simulator
@@ -45,6 +47,10 @@ In Windows PowerShell:
 $env:EXPO_PUBLIC_API_BASE_URL="http://10.0.2.2:5276"
 npm start
 ```
+
+The Observation form starts with the current local date and time. Edit both
+before saving if needed. The app converts that local date/time to an ISO 8601
+UTC timestamp with an explicit `Z` offset for the API.
 
 The Android emulator can use the regular backend HTTP launch profile on
 `localhost:5276`; its `10.0.2.2` address reaches the host computer. For
@@ -77,9 +83,12 @@ npx expo-doctor
 
 - `index.ts` registers the application with Expo.
 - `src/presentation` contains the root navigator and rendered screens.
-- `src/application` contains typed navigation and Food contracts.
-- `src/infrastructure` contains the Food API client and API configuration.
-- `tests` covers startup, navigation, API requests, and Food list/create flows.
+- `src/application` contains typed navigation, Food contracts, and Observation
+  contracts.
+- `src/infrastructure` contains the Food and Observation API clients and API
+  configuration.
+- `tests` covers startup, navigation, API requests, Food list/create, and
+  Observation logging flows.
 
 Presentation can depend on application contracts, while future infrastructure
 implements the Food repository contract. Product business rules remain in the
