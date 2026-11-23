@@ -17,4 +17,12 @@ describe('mobile app', () => {
 
     expect(getByRole('header', { name: 'Observation entry' })).toBeTruthy();
   });
+
+  it('navigates from home to the Food list', async () => {
+    const { getByRole } = await render(<App />);
+
+    await fireEvent.press(getByRole('button', { name: 'Food list' }));
+
+    expect(getByRole('header', { name: 'Foods' })).toBeTruthy();
+  });
 });
